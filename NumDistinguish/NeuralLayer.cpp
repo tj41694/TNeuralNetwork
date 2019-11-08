@@ -13,7 +13,7 @@ NeuralLayer::NeuralLayer(int row_, int colum_, float bias_) :row(row_), column(c
 	}
 }
 
-DataElem NeuralLayer::Multiply(float* data, unsigned int length) {
+DataElem NeuralLayer::MatrixMultiply(float* data, unsigned int length) {
 	if (length != column) {
 		printf("err.. Dimension not match..");
 	}

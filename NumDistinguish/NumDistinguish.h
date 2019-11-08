@@ -2,13 +2,13 @@
 class NeuralLayer;
 
 enum class CostFunc {
-	MeanSquare,
-	CrossEntropy
+	MeanSquare, //均方差
+	CrossEntropy //交叉熵
 };
 
 enum class ActiveFunc {
-	Linear,
-	ReLU
+	Linear, //线性
+	ReLU  //
 };
 
 struct DataElem {
@@ -21,6 +21,7 @@ struct DataElem {
 			}
 		}
 	}
+	//经典SoftMax化
 	DataElem SoftMax() {
 		//先求和
 		double total = 0;
@@ -48,7 +49,6 @@ struct RawData : DataElem {
 		memcpy(pixs, data, dataCount);
 		num = num_;
 	}
-
 };
 class DigitalDistinguish {
 public:

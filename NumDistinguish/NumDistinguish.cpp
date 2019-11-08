@@ -1,31 +1,26 @@
 #include "NumDistinguish.h"
 #include "NeuralLayer.h"
+#include "Shuffle.h"
 
 using namespace std;
 void DigitalDistinguish::StartTraining(const std::vector<RawData>& data) {
 
-	size_t count = data.size();
-	float totalVAL = 0;
-	float OneHundredVal = 0;
-	unsigned int c = 0;
 	vector<DataElem> reualts;
-	for (size_t i = 0; i < count; i++) {
-		float cost = GetCostValue((DataElem*)&data[i], ActiveFunc::ReLU, CostFunc::CrossEntropy);
-		totalVAL += cost;
-		OneHundredVal += cost;
-		c++;
-		if (i % 100 == 0 || i == count - 1) {
-			float aver = OneHundredVal / c;
-
-			GradiantDecent(0.01f, aver);
-			OneHundredVal = 0;
-			c = 0;
+	int sampleSize = 100;
+	Shuffle shuff(data);
+	while (true) {
+		vector<unsigned int>* sample = shuff.GetShuffledData(sampleSize); //样本索引
+		float sampleTotalVal = 0;
+		for (size_t i = 0; i < sample->size(); i++) {
+			float cost = GetCostValue((DataElem*)&data[(*sample)[i]], ActiveFunc::ReLU, CostFunc::CrossEntropy);
+			sampleTotalVal += cost;
 		}
+		float average = sampleTotalVal / sampleSize; //样本均值
+		GradiantDecent(0.01f, average);
 	}
-	printf("%f\n", totalVAL / count);
 }
 
-void DigitalDistinguish::GradiantDecent(float lRate, float costVal) {
+void DigitalDistinguish::GradiantDecent(float lRate, float averageCostVal) {
 
 }
 
@@ -37,7 +32,7 @@ void DigitalDistinguish::PushLayer(unsigned int row, unsigned int colum, float b
 float DigitalDistinguish::GetCostValue(const DataElem* elem, ActiveFunc activeType, CostFunc costType) {
 	DataElem tmpLayer = *elem;
 	for (unsigned int i = 0; i < layers.size(); i++) {
-		DataElem hiddenLater = layers[i]->Multiply(tmpLayer.pixs, tmpLayer.size);
+		DataElem hiddenLater = layers[i]->MatrixMultiply(tmpLayer.pixs, tmpLayer.size);
 		if (i != 0) { delete[] tmpLayer.pixs; }
 
 		if (i != layers.size() - 1) {
@@ -52,7 +47,7 @@ float DigitalDistinguish::GetCostValue(const DataElem* elem, ActiveFunc activeTy
 		}
 		tmpLayer = hiddenLater;
 	}
-	float costVal = 0;
+	double costVal = 0;
 	switch (costType) {
 	case CostFunc::CrossEntropy:
 	{
@@ -65,15 +60,15 @@ float DigitalDistinguish::GetCostValue(const DataElem* elem, ActiveFunc activeTy
 	default:
 		for (unsigned int i = 0; i < tmpLayer.size; i++) {
 			if (i == ((RawData*)elem)->num - 1) {
-				costVal += (tmpLayer.pixs[i] - 1) * (tmpLayer.pixs[i] - 1);
+				costVal += (tmpLayer.pixs[i] - 1.0) * (tmpLayer.pixs[i] - 1.0);
 			}
 			else {
-				costVal += tmpLayer.pixs[i] * tmpLayer.pixs[i];
+				costVal += tmpLayer.pixs[i] * (double)tmpLayer.pixs[i];
 			}
 		}
 		break;
 	}
-	return costVal;
+	return (float)costVal;
 }
 
 DigitalDistinguish::~DigitalDistinguish() {

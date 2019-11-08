@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="NeuralLayer.cpp" />
+    <ClCompile Include="NumDistinguish.cpp" />
+    <ClCompile Include="sqlite3\shell.c">
+      <Filter>External</Filter>
+    </ClCompile>
+    <ClCompile Include="sqlite3\sqlite3.c">
+      <Filter>External</Filter>
+    </ClCompile>
+    <ClCompile Include="Shuffle.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="NeuralLayer.h" />
+    <ClInclude Include="NumDistinguish.h" />
+    <ClInclude Include="sqlite3\sqlite3.h">
+      <Filter>External</Filter>
+    </ClInclude>
+    <ClInclude Include="sqlite3\sqlite3ext.h">
+      <Filter>External</Filter>
+    </ClInclude>
+    <ClInclude Include="Shuffle.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="External">
+      <UniqueIdentifier>{4b52acb4-7ea9-436a-8369-2b2b989d75cb}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
