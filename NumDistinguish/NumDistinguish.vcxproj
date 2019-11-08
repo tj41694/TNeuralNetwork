@@ -129,6 +129,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Layer.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="NeuralLayer.cpp" />
     <ClCompile Include="NumDistinguish.cpp" />
@@ -137,6 +138,7 @@
     <ClCompile Include="sqlite3\sqlite3.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Layer.h" />
     <ClInclude Include="NeuralLayer.h" />
     <ClInclude Include="NumDistinguish.h" />
     <ClInclude Include="Shuffle.h" />

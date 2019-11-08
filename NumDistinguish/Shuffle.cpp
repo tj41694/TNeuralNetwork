@@ -2,9 +2,10 @@
 #include "NumDistinguish.h"
 #include <random>
 #include <chrono>       // std::chrono::system_clock
+#include "Layer.h"
 
 using namespace std;
-Shuffle::Shuffle(const vector<RawData>& datas) : size(datas.size()) {
+Shuffle::Shuffle(const vector<Layer>& datas) : size(datas.size()) {
 	indeces.resize(datas.size());
 	for (unsigned int i = 0; i < size; i++) { indeces[i] = i; }
 	Random_Shuffle();

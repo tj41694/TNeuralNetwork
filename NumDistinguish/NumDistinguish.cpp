@@ -1,20 +1,23 @@
 #include "NumDistinguish.h"
 #include "NeuralLayer.h"
 #include "Shuffle.h"
+#include "Layer.h"
 
 using namespace std;
-void DigitalDistinguish::StartTraining(const std::vector<RawData>& data) {
+void DigitalDistinguish::StartTraining(const std::vector<Layer>& data) {
 
-	vector<DataElem> reualts;
+	vector<Layer> reualts;
 	int sampleSize = 100;
 	Shuffle shuff(data);
 	while (true) {
 		vector<unsigned int>* sample = shuff.GetShuffledData(sampleSize); //样本索引
 		float sampleTotalVal = 0;
 		for (size_t i = 0; i < sample->size(); i++) {
-			float cost = GetCostValue((DataElem*)&data[(*sample)[i]], ActiveFunc::ReLU, CostFunc::CrossEntropy);
+			unsigned int index = (*sample)[i];
+			float cost = GetCostValue(data[index], ActiveFunc::ReLU, CostFunc::CrossEntropy);
 			sampleTotalVal += cost;
 		}
+		delete sample;
 		float average = sampleTotalVal / sampleSize; //样本均值
 		GradiantDecent(0.01f, average);
 	}
@@ -29,11 +32,11 @@ void DigitalDistinguish::PushLayer(unsigned int row, unsigned int colum, float b
 	layers.emplace_back(layer);
 }
 
-float DigitalDistinguish::GetCostValue(const DataElem* elem, ActiveFunc activeType, CostFunc costType) {
-	DataElem tmpLayer = *elem;
+float DigitalDistinguish::GetCostValue(const Layer& elem, ActiveFunc activeType, CostFunc costType) {
+	Layer tmpLayer = elem;
 	for (unsigned int i = 0; i < layers.size(); i++) {
-		DataElem hiddenLater = layers[i]->MatrixMultiply(tmpLayer.pixs, tmpLayer.size);
-		if (i != 0) { delete[] tmpLayer.pixs; }
+		Layer hiddenLater = layers[i]->MatrixMultiply(tmpLayer.activation, tmpLayer.size);
+		if (i != 0) { delete[] tmpLayer.activation; }
 
 		if (i != layers.size() - 1) {
 			switch (activeType) {
@@ -51,19 +54,19 @@ float DigitalDistinguish::GetCostValue(const DataElem* elem, ActiveFunc activeTy
 	switch (costType) {
 	case CostFunc::CrossEntropy:
 	{
-		DataElem softMax = tmpLayer.SoftMax();
-		costVal = -log(softMax.pixs[((RawData*)elem)->num]);
-		delete[] softMax.pixs;
+		Layer softMax = tmpLayer.SoftMax();
+		costVal = -log(softMax.activation[elem.trueValue]);
+		delete[] softMax.activation;
 	}
 	break;
 	case CostFunc::MeanSquare:
 	default:
 		for (unsigned int i = 0; i < tmpLayer.size; i++) {
-			if (i == ((RawData*)elem)->num - 1) {
-				costVal += (tmpLayer.pixs[i] - 1.0) * (tmpLayer.pixs[i] - 1.0);
+			if (i == elem.trueValue - 1) {
+				costVal += (tmpLayer.activation[i] - 1.0) * (tmpLayer.activation[i] - 1.0);
 			}
 			else {
-				costVal += tmpLayer.pixs[i] * (double)tmpLayer.pixs[i];
+				costVal += tmpLayer.activation[i] * (double)tmpLayer.activation[i];
 			}
 		}
 		break;
