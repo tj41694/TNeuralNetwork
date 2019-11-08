@@ -3,18 +3,9 @@
 #include "NumDistinguish.h"
 #include "NeuralLayer.h"
 
-static int callback(void* NotUsed, int argc, char** argv, char** azColName) {
-
-	for (int i = 0; i < argc; i++) {
-		printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
-	}
-	printf("\n");
-	return 0;
-}
-
 bool GetData(std::vector<RawData>& datas) {
 	sqlite3* db;
-	if (SQLITE_OK != sqlite3_open("C:\\project\\NeuralNetWorks\\test.db", &db)) {
+	if (SQLITE_OK != sqlite3_open("resources/test.db", &db)) {
 		printf(sqlite3_errmsg(db));
 		return false;
 	}
