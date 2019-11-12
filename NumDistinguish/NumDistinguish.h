@@ -15,10 +15,10 @@ enum class ActiveFunc {
 class DigitalDistinguish {
 public:
 	~DigitalDistinguish();
-	void StartTraining(const std::vector<Layer>& data);
+	void StartTraining(const std::vector<Layer*>& data);
 	void GradiantDecent(float lRate, float costVal);
 	void PushLayer(unsigned int row, unsigned int colum, float bias);
-	float GetCostValue(const Layer& elem, ActiveFunc activeType, CostFunc costType);
+	float GetCostValue(const Layer* elem, ActiveFunc activeType, CostFunc costType);
 private:
 	std::vector<NeuralLayer*> layers;
 };

@@ -14,19 +14,19 @@ NeuralLayer::NeuralLayer(int row_, int colum_, float bias_) :row(row_), column(c
 	}
 }
 
-Layer NeuralLayer::MatrixMultiply(float* data, unsigned int length) {
+Layer* NeuralLayer::MatrixMultiply(float* data, unsigned int length) {
 	if (length != column) {
 		printf("err.. Dimension not match..");
 	}
-	Layer result;
-	result.activation = new float[row];
-	result.size = row;
+	Layer* result = new Layer();
+	result->activation = new float[row];
+	result->size = row;
 	for (int r = 0; r < row; r++) { //矩阵乘数据(向量)
 		float val = 0;
 		for (int c = 0; c < column; c++) {
 			val += data[c] * matrix[r * column + c];
 		}
-		result.activation[r] = val + bias[r];
+		result->activation[r] = val + bias[r];
 	}
 	return result;
 }

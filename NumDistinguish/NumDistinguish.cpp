@@ -4,7 +4,7 @@
 #include "Layer.h"
 
 using namespace std;
-void DigitalDistinguish::StartTraining(const std::vector<Layer>& data) {
+void DigitalDistinguish::StartTraining(const std::vector<Layer*>& data) {
 
 	vector<Layer> reualts;
 	int sampleSize = 100;
@@ -32,16 +32,16 @@ void DigitalDistinguish::PushLayer(unsigned int row, unsigned int colum, float b
 	layers.emplace_back(layer);
 }
 
-float DigitalDistinguish::GetCostValue(const Layer& elem, ActiveFunc activeType, CostFunc costType) {
-	Layer tmpLayer = elem;
+float DigitalDistinguish::GetCostValue(const Layer* elem, ActiveFunc activeType, CostFunc costType) {
+
+	Layer* tmpLayer = elem;
 	for (unsigned int i = 0; i < layers.size(); i++) {
-		Layer hiddenLater = layers[i]->MatrixMultiply(tmpLayer.activation, tmpLayer.size);
-		if (i != 0) { delete[] tmpLayer.activation; }
+		Layer* hiddenLater = layers[i]->MatrixMultiply(tmpLayer.activation, tmpLayer.size);
 
 		if (i != layers.size() - 1) {
 			switch (activeType) {
 			case ActiveFunc::ReLU:
-				hiddenLater.Relu(); //非输出层使用relu作为激活函数
+				hiddenLater->Relu(); //非输出层使用relu作为激活函数
 				break;
 			case ActiveFunc::Linear:
 			default:

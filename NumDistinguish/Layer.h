@@ -2,14 +2,12 @@
 #include <math.h>
 class Layer {
 public:
-	float*			activation = 0;
-	unsigned int	size = 0;
-	int				trueValue = -1;
+	float*			activation;
+	unsigned int	size;
+	int				trueValue;
 
 public:
 	Layer();
-	Layer(const Layer& layer_);
-	Layer(Layer&& layer_);
 	Layer(int num_, const char* data, unsigned int dataCount);
 	Layer MatrixMultiply(Layer& leftLayer);
 	void Relu() {

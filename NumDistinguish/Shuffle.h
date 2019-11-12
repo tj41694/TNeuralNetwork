@@ -2,7 +2,7 @@
 class Layer;
 class Shuffle {
 public:
-	Shuffle(const std::vector<Layer>& data);
+	Shuffle(const std::vector<Layer*>& data);
 	std::vector<unsigned int>* GetShuffledData(int count);
 	~Shuffle();
 

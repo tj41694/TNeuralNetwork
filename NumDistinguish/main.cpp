@@ -4,7 +4,7 @@
 #include "NeuralLayer.h"
 #include "Layer.h"
 
-bool GetData(std::vector<Layer>& datas) {
+bool GetData(std::vector<Layer*>& datas) {
 	sqlite3* db;
 	if (SQLITE_OK != sqlite3_open("resources/test.db", &db)) {
 		printf(sqlite3_errmsg(db));
@@ -15,7 +15,8 @@ bool GetData(std::vector<Layer>& datas) {
 	while (sqlite3_step(pStmt) == SQLITE_ROW) {
 		int ulImageSize = sqlite3_column_bytes(pStmt, 2);
 		if (ulImageSize == 3136) {
-			datas.push_back(Layer(sqlite3_column_int(pStmt, 1), (char*)sqlite3_column_blob(pStmt, 2), ulImageSize));
+			Layer* layer = new Layer(sqlite3_column_int(pStmt, 1), (char*)sqlite3_column_blob(pStmt, 2), ulImageSize);
+			datas.push_back(layer);
 		}
 	}
 	sqlite3_finalize(pStmt);
@@ -28,9 +29,12 @@ int main() {
 	model.PushLayer(16, 784, 0);
 	model.PushLayer(16, 16, 0);
 	model.PushLayer(10, 16, 0);
-	std::vector<Layer> datas;
+	std::vector<Layer*> datas;
 	if (GetData(datas)) {
 		model.StartTraining(datas);
+	}
+	for(size_t i = 0; i < datas.size(); i++){
+		delete datas[i];
 	}
 	printf("done..");
 	return 0;

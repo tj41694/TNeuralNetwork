@@ -1,20 +1,12 @@
 #include "Layer.h"
 #include <corecrt_memory.h>
 
-Layer::Layer() {}
-
-Layer::Layer(const Layer& layer_) {
-	activation = layer_.activation;
-	size = layer_.size;
-	trueValue = layer_.trueValue;
+Layer::Layer() {
+	activation = nullptr;
+	size = 0;
+	trueValue = -1;
 }
 
-Layer::Layer(Layer&& layer_) {
-	activation = layer_.activation;
-	layer_.activation = nullptr;
-	size = layer_.size;
-	trueValue = layer_.trueValue;
-}
 Layer::Layer(int num_, const char* data, unsigned int dataCount) {
 	size = dataCount / sizeof(float);
 	activation = new float[size];
@@ -27,6 +19,8 @@ Layer Layer::MatrixMultiply(Layer& leftLayer) {
 }
 
 Layer::~Layer() {
-	delete[] activation;
+	if (activation) {
+		delete[] activation;
+	}
 }
 
