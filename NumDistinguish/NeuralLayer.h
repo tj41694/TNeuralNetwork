@@ -1,9 +1,9 @@
 #pragma once
-class Layer;
+class Sample;
 class NeuralLayer {
 public:
 	NeuralLayer(int row_, int colum_, float bias_);
-	Layer* MatrixMultiply(float* data, unsigned int length);
+	Sample* MatrixMultiply(const Sample& ly);
 	~NeuralLayer();
 private:
 	float* matrix;

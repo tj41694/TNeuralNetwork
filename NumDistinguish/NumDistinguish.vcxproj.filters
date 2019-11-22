@@ -11,7 +11,7 @@
       <Filter>External</Filter>
     </ClCompile>
     <ClCompile Include="Shuffle.cpp" />
-    <ClCompile Include="Layer.cpp" />
+    <ClCompile Include="Sample.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="NeuralLayer.h" />
@@ -23,7 +23,7 @@
       <Filter>External</Filter>
     </ClInclude>
     <ClInclude Include="Shuffle.h" />
-    <ClInclude Include="Layer.h" />
+    <ClInclude Include="Sample.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="External">

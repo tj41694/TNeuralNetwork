@@ -1,8 +1,8 @@
 #include <vector>
-class Layer;
+class Sample;
 class Shuffle {
 public:
-	Shuffle(const std::vector<Layer*>& data);
+	Shuffle(const std::vector<Sample*>& data);
 	std::vector<unsigned int>* GetShuffledData(int count);
 	~Shuffle();
 

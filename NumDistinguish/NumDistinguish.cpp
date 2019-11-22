@@ -1,12 +1,11 @@
 #include "NumDistinguish.h"
 #include "NeuralLayer.h"
 #include "Shuffle.h"
-#include "Layer.h"
+#include "Sample.h"
 
 using namespace std;
-void DigitalDistinguish::StartTraining(const std::vector<Layer*>& data) {
-
-	vector<Layer> reualts;
+void DigitalDistinguish::StartTraining(const std::vector<Sample*>& data) {
+	vector<Sample> reualts;
 	int sampleSize = 100;
 	Shuffle shuff(data);
 	while (true) {
@@ -32,41 +31,42 @@ void DigitalDistinguish::PushLayer(unsigned int row, unsigned int colum, float b
 	layers.emplace_back(layer);
 }
 
-float DigitalDistinguish::GetCostValue(const Layer* elem, ActiveFunc activeType, CostFunc costType) {
-
-	Layer* tmpLayer = elem;
-	for (unsigned int i = 0; i < layers.size(); i++) {
-		Layer* hiddenLater = layers[i]->MatrixMultiply(tmpLayer.activation, tmpLayer.size);
-
+float DigitalDistinguish::GetCostValue(const Sample* sample, ActiveFunc activeType, CostFunc costType) {
+	//第1层
+	Sample* hdLayer = layers[0]->MatrixMultiply(*sample);
+	hdLayer->Relu();
+	//第2到n层
+	for (unsigned int i = 1; i < layers.size(); i++) {
+		Sample* tempLater = layers[i]->MatrixMultiply(*hdLayer);
 		if (i != layers.size() - 1) {
 			switch (activeType) {
 			case ActiveFunc::ReLU:
-				hiddenLater->Relu(); //非输出层使用relu作为激活函数
+				tempLater->Relu(); //非输出层使用relu作为激活函数
 				break;
 			case ActiveFunc::Linear:
 			default:
 				break;
 			}
 		}
-		tmpLayer = hiddenLater;
+		delete hdLayer;
+		hdLayer = tempLater;
 	}
 	double costVal = 0;
 	switch (costType) {
 	case CostFunc::CrossEntropy:
 	{
-		Layer softMax = tmpLayer.SoftMax();
-		costVal = -log(softMax.activation[elem.trueValue]);
-		delete[] softMax.activation;
+		Sample softMax = hdLayer->SoftMax(); //调用复制构造函数
+		costVal = -log(softMax.activation[sample->trueValue]);
 	}
 	break;
 	case CostFunc::MeanSquare:
 	default:
-		for (unsigned int i = 0; i < tmpLayer.size; i++) {
-			if (i == elem.trueValue - 1) {
-				costVal += (tmpLayer.activation[i] - 1.0) * (tmpLayer.activation[i] - 1.0);
+		for (unsigned int i = 0; i < hdLayer->size; i++) {
+			if (i == sample->trueValue - 1) {
+				costVal += (hdLayer->activation[i] - 1.0) * (hdLayer->activation[i] - 1.0);
 			}
 			else {
-				costVal += tmpLayer.activation[i] * (double)tmpLayer.activation[i];
+				costVal += hdLayer->activation[i] * (double)hdLayer->activation[i];
 			}
 		}
 		break;

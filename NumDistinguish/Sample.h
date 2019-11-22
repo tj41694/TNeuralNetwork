@@ -1,15 +1,15 @@
 #pragma once
 #include <math.h>
-class Layer {
+class Sample {
 public:
 	float*			activation;
 	unsigned int	size;
 	int				trueValue;
 
 public:
-	Layer();
-	Layer(int num_, const char* data, unsigned int dataCount);
-	Layer MatrixMultiply(Layer& leftLayer);
+	Sample();
+	Sample(const Sample& ly);
+	Sample(int num_, const char* data, unsigned int dataCount);
 	void Relu() {
 		for (unsigned int i = 0; i < size; i++) {
 			if (activation[i] < 0) {
@@ -17,12 +17,15 @@ public:
 			}
 		}
 	}
+	Sample& operator=(const Sample& ly);
 	//经典SoftMax化
-	Layer SoftMax() {
+	Sample SoftMax() {
+		Sample result;
+		result.activation = new float[size] { 0 };
+		result.size = size;
+		result.trueValue = trueValue;
 		//先求和
 		double total = 0;
-		Layer result;
-		result.activation = new float[size] { 0 };
 		for (unsigned int i = 0; i < size; i++) {
 			//printf("ori: %f\n", pixs[i]);
 			result.activation[i] = (float)exp(activation[i]);
@@ -35,7 +38,7 @@ public:
 		}
 		return result;
 	}
-	~Layer();
+	~Sample();
 private:
 };
 

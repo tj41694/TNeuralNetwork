@@ -2,7 +2,7 @@
 #include <cstdlib> // Header file needed to use srand and rand
 #include <ctime> // Header file needed to use time
 #include "NumDistinguish.h"
-#include "Layer.h"
+#include "Sample.h"
 
 NeuralLayer::NeuralLayer(int row_, int colum_, float bias_) :row(row_), column(colum_) {
 	matrix = new float[(size_t)row_ * colum_];
@@ -14,17 +14,17 @@ NeuralLayer::NeuralLayer(int row_, int colum_, float bias_) :row(row_), column(c
 	}
 }
 
-Layer* NeuralLayer::MatrixMultiply(float* data, unsigned int length) {
-	if (length != column) {
+Sample* NeuralLayer::MatrixMultiply(const Sample& ly) {
+	if (ly.size != column) {
 		printf("err.. Dimension not match..");
 	}
-	Layer* result = new Layer();
+	Sample* result = new Sample();
 	result->activation = new float[row];
 	result->size = row;
 	for (int r = 0; r < row; r++) { //矩阵乘数据(向量)
 		float val = 0;
 		for (int c = 0; c < column; c++) {
-			val += data[c] * matrix[r * column + c];
+			val += ly.activation[c] * matrix[r * column + c];
 		}
 		result->activation[r] = val + bias[r];
 	}
