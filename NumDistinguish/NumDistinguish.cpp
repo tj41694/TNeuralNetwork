@@ -11,14 +11,12 @@ void DigitalDistinguish::PushLayer(unsigned int row, unsigned int colum, float b
 }
 
 void DigitalDistinguish::StartTraining(const std::vector<Sample*>& data, int sampleSize) {
-	vector<Sample> reualts;
 	Shuffle shuff(data);
 	while (true) {
 		const vector<unsigned int> & randomIndeces = shuff.GetShuffledData(sampleSize); //获取指定数量的随机样本索引
 		float sampleTotalVal = 0;
 		for (size_t i = 0; i < randomIndeces.size(); i++) {
-			unsigned int index = randomIndeces[i];
-			float cost = GetCostValue(data[index], ActiveFunc::ReLU, CostFunc::CrossEntropy);
+			float cost = GetCostValue(data[randomIndeces[i]], ActiveFunc::ReLU, CostFunc::CrossEntropy);
 			sampleTotalVal += cost;
 		}
 		float average = sampleTotalVal / sampleSize; //样本均值
