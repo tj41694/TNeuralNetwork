@@ -17,7 +17,7 @@ enum class ActiveFunc {
 class DigitalDistinguish {
 public:
 	~DigitalDistinguish();
-	void StartTraining(const std::vector<Sample*>& data);
+	void StartTraining(const std::vector<Sample*>& data, int sampleSize = 100);
 	void GradiantDecent(float lRate, float costVal);
 	void PushLayer(unsigned int row, unsigned int colum, float bias);
 	float GetCostValue(const Sample* elem, ActiveFunc activeType, CostFunc costType);

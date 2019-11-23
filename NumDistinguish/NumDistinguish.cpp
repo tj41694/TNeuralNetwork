@@ -4,19 +4,23 @@
 #include "Sample.h"
 
 using namespace std;
-void DigitalDistinguish::StartTraining(const std::vector<Sample*>& data) {
+
+void DigitalDistinguish::PushLayer(unsigned int row, unsigned int colum, float bias = 0) {
+	NeuralLayer* layer = new NeuralLayer(row, colum, bias);
+	layers.emplace_back(layer);
+}
+
+void DigitalDistinguish::StartTraining(const std::vector<Sample*>& data, int sampleSize) {
 	vector<Sample> reualts;
-	int sampleSize = 100;
 	Shuffle shuff(data);
 	while (true) {
-		vector<unsigned int>* sample = shuff.GetShuffledData(sampleSize); //样本索引
+		const vector<unsigned int> & randomIndeces = shuff.GetShuffledData(sampleSize); //获取指定数量的随机样本索引
 		float sampleTotalVal = 0;
-		for (size_t i = 0; i < sample->size(); i++) {
-			unsigned int index = (*sample)[i];
+		for (size_t i = 0; i < randomIndeces.size(); i++) {
+			unsigned int index = randomIndeces[i];
 			float cost = GetCostValue(data[index], ActiveFunc::ReLU, CostFunc::CrossEntropy);
 			sampleTotalVal += cost;
 		}
-		delete sample;
 		float average = sampleTotalVal / sampleSize; //样本均值
 		GradiantDecent(0.01f, average);
 	}
@@ -24,11 +28,6 @@ void DigitalDistinguish::StartTraining(const std::vector<Sample*>& data) {
 
 void DigitalDistinguish::GradiantDecent(float lRate, float averageCostVal) {
 
-}
-
-void DigitalDistinguish::PushLayer(unsigned int row, unsigned int colum, float bias = 0) {
-	NeuralLayer* layer = new NeuralLayer(row, colum, bias);
-	layers.emplace_back(layer);
 }
 
 float DigitalDistinguish::GetCostValue(const Sample* sample, ActiveFunc activeType, CostFunc costType) {

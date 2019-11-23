@@ -31,7 +31,7 @@ int main() {
 	model.PushLayer(10, 16, 0);
 	std::vector<Sample*> datas;
 	if (GetData(datas)) {
-		model.StartTraining(datas);
+		model.StartTraining(datas, 100);
 	}
 	for(size_t i = 0; i < datas.size(); i++){
 		delete datas[i];

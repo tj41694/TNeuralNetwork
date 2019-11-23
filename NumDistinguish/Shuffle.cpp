@@ -5,30 +5,37 @@
 #include "Sample.h"
 
 using namespace std;
+
 Shuffle::Shuffle(const vector<Sample*>& datas) : size(datas.size()) {
-	indeces.resize(datas.size());
-	for (unsigned int i = 0; i < size; i++) { indeces[i] = i; }
+	// obtain a time-based seed:
+	seed = (unsigned)std::chrono::system_clock::now().time_since_epoch().count();
+
+	randomIndeces.resize(size);
+
+	for (size_t i = 0; i < size; i++) { randomIndeces[i] = i; } 
+
 	Random_Shuffle();
 }
 
 void Shuffle::Random_Shuffle() {
-	// obtain a time-based seed:
-	unsigned seed = (unsigned)std::chrono::system_clock::now().time_since_epoch().count();
-	std::shuffle(indeces.begin(), indeces.end(), std::default_random_engine(seed));
+	std::shuffle(randomIndeces.begin(), randomIndeces.end(), std::default_random_engine(seed));
 	curIndex = 0;
 }
 
-vector<unsigned int>* Shuffle::GetShuffledData(int count) {
-	vector<unsigned int>* dataIndex = new vector<unsigned int>();
+const vector<unsigned int>& Shuffle::GetShuffledData(int count) {
 
-	while (dataIndex->size() != count) {
-		dataIndex->emplace_back(indeces[curIndex++]);
-		if (curIndex == size) {
+	shuffleIndeces.clear();
+	shuffleIndeces.resize(count);
+
+	for (int i = 0; i < count; i++) {
+		shuffleIndeces[i] = randomIndeces[curIndex++];
+		if (curIndex == size - 1) {
 			Random_Shuffle();
 		}
 	}
-	return dataIndex;
+	return shuffleIndeces;
 }
 
+Shuffle::~Shuffle() {
+}
 
-Shuffle::~Shuffle() {}
