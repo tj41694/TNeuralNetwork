@@ -1,5 +1,5 @@
 #pragma once
-class Sample;
+#include <vector>
 class NeuralMatrix {
 public:
 
@@ -7,10 +7,10 @@ public:
 	~NeuralMatrix();
 
 public:
-	float*	matrix;
-	int		row;
-	int		column;
-	float	bias;
+	std::vector<std::vector<double>>	matrix;
+	int									row;
+	int									column;
+	float								bias;
 
 private:
 };

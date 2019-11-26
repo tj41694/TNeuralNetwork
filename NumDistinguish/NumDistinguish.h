@@ -1,4 +1,4 @@
-#include "vector"
+#include <vector>
 class NeuralMatrix;
 class Sample;
 
@@ -11,8 +11,7 @@ public:
 	void PushLayer(unsigned int row, unsigned int colum, float bias);
 	void StartTraining(const std::vector<Sample*>& data, int sampleSize = 100);
 	void ForwardPass(Sample & sample);
-	void GradiantDecent(double lRate, double costVal);
+	void BackwardsPass(const std::vector<Sample*>& samples, const std::vector<size_t> & indeces, double lRate, double averageCostVal);
 private:
 	std::vector<NeuralMatrix*> layers;
 };
-

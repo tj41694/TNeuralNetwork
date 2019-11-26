@@ -4,17 +4,23 @@
 #include "NumDistinguish.h"
 #include "Sample.h"
 
-NeuralMatrix::NeuralMatrix(int row_, int colum_, float bias_) :row(row_), column(colum_) {
-	matrix = new float[(size_t)row_ * colum_];
-	bias = bias_;
-	srand((unsigned int)time(0));
-	for (int i = 0; i < row_ * colum_; i++) {
-		float x = (float)(rand() * 2.0 / RAND_MAX - 1.0);
-		matrix[i] = x;
+using namespace std;
+NeuralMatrix::NeuralMatrix(int row_, int colum_, float bias_) :row(row_), column(colum_), bias(bias_) {
+	static bool initial = false;
+	if (!initial) {
+		srand((unsigned int)time(0));
+		initial = true;
+	}
+	for (int r = 0; r < row_; r++) {
+		vector<double> row;
+		row.resize(colum_);
+		for (int c = 0; c < colum_; c++) {
+			row[c] = rand() * 2.0 / RAND_MAX - 1.0;
+		}
+		matrix.emplace_back(row);
 	}
 }
 
 NeuralMatrix::~NeuralMatrix() {
-	delete[] matrix;
 }
 

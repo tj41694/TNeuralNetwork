@@ -15,7 +15,7 @@ bool GetData(std::vector<Sample*>& datas) {
 	while (sqlite3_step(pStmt) == SQLITE_ROW) {
 		int ulImageSize = sqlite3_column_bytes(pStmt, 2);
 		if (ulImageSize == 3136) {
-			Sample* layer = new Sample(sqlite3_column_int(pStmt, 1), (char*)sqlite3_column_blob(pStmt, 2), ulImageSize);
+			Sample* layer = new Sample(sqlite3_column_int(pStmt, 1), (float*)sqlite3_column_blob(pStmt, 2), ulImageSize / sizeof(float));
 			datas.push_back(layer);
 		}
 	}

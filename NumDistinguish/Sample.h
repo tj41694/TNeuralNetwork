@@ -19,28 +19,24 @@ enum class CostFunc {
 	CrossEntropy
 };
 
-struct SampleUnit {
-	float*			activation;
-	unsigned int	size;
-};
 
 struct SampleLayer {
-	SampleUnit net;
-	SampleUnit out;
+	std::vector<double> net;
+	std::vector<double> out;
 	ActiveFunc activeFunc;
 };
 
 
 class Sample {
 public:
-	int							trueValue;
-	SampleUnit					originLayer;
+	int								trueValue;
+	std::vector<double>				originLayer;
 	std::vector<SampleLayer>		activeLayers;
 public:
 
 	Sample();
 	Sample(const Sample&);
-	Sample(int num_, const char* data, unsigned int dataCount);
+	Sample(int num_, const float* data, unsigned int floatCount);
 	~Sample();
 
 	void MatrixMultiply(const NeuralMatrix& layer, ActiveFunc func);

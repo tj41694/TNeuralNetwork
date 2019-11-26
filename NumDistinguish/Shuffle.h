@@ -1,5 +1,5 @@
 #include <vector>
-class Sample;
+
 class Shuffle {
 public:
 

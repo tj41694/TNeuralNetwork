@@ -10,9 +10,10 @@ void DigitalDistinguish::PushLayer(unsigned int row, unsigned int colum, float b
 	layers.emplace_back(layer);
 }
 
-void DigitalDistinguish::StartTraining(const std::vector<Sample*>& samples, int sampleSize) {
+void DigitalDistinguish::StartTraining(const vector<Sample*>& samples, int sampleSize) {
 	Shuffle shuff(samples.size());
-	while (true) {
+	double averageCost = 100000.0;
+	while (averageCost > 0.5) {
 		const vector<size_t>& randomIndeces = shuff.GetShuffledData(sampleSize); //获取指定数量的随机样本索引
 		double sampleTotalVal = 0;
 		for (size_t i = 0; i < randomIndeces.size(); i++) {
@@ -20,12 +21,11 @@ void DigitalDistinguish::StartTraining(const std::vector<Sample*>& samples, int 
 			double cost = samples[randomIndeces[i]]->GetCostValue(CostFunc::CrossEntropy);
 			sampleTotalVal += cost;
 		}
-		double average = sampleTotalVal / sampleSize; //样本均值
-		GradiantDecent(0.01f, average);
+		averageCost = sampleTotalVal / sampleSize; //样本均值
+		BackwardsPass(samples, randomIndeces, 0.05f, averageCost);
 	}
 }
 
-//正向传递，除最后一层使用SoftMax激活函数外，其他层使用Relu
 void DigitalDistinguish::ForwardPass(Sample& sample) {
 	for (size_t i = 0; i < layers.size() - 1; i++) {
 		sample.MatrixMultiply(*layers[i], ActiveFunc::ReLU);
@@ -33,11 +33,13 @@ void DigitalDistinguish::ForwardPass(Sample& sample) {
 	sample.MatrixMultiply(*layers[layers.size() - 1], ActiveFunc::SoftMax);
 }
 
-void DigitalDistinguish::GradiantDecent(double lRate, double averageCostVal) {
+void DigitalDistinguish::BackwardsPass(const vector<Sample*>& samples, const vector<size_t>& indeces, double lRate, double averageCostVal) {
 
 }
 
-DigitalDistinguish::DigitalDistinguish() {}
+DigitalDistinguish::DigitalDistinguish() {
+
+}
 
 DigitalDistinguish::~DigitalDistinguish() {
 	for (unsigned int i = 0; i < layers.size(); i++) {
