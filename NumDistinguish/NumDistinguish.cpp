@@ -34,7 +34,22 @@ void DigitalDistinguish::ForwardPass(Sample& sample) {
 }
 
 void DigitalDistinguish::BackwardsPass(const vector<Sample*>& samples, const vector<size_t>& indeces, double lRate, double averageCostVal) {
-
+	for (int i = layers.size() - 1; i != 0; i--) {
+		NeuralMatrix gradient(*layers[i], true);
+		for (auto index : indeces) {
+			const vector<double> out = samples[index]->activeLayers[i].out;
+			gradient.bias += (out[samples[index]->trueValue] - 1);
+			//for (int j = 0; j < out.size(); j++) {
+			//	if (samples[index]->trueValue == j) {
+			//		gradient.bias += (out[j] - 1);
+			//	}
+			//	else {
+			//		gradient.bias += out[j];
+			//	}
+			//}
+		}
+		gradient.bias /= indeces.size();
+	}
 }
 
 DigitalDistinguish::DigitalDistinguish() {

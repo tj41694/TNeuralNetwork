@@ -21,6 +21,15 @@ NeuralMatrix::NeuralMatrix(int row_, int colum_, float bias_) :row(row_), column
 	}
 }
 
+
+NeuralMatrix::NeuralMatrix(const NeuralMatrix& neural, bool zeroIze) :row(neural.row), column(neural.column), bias(0) {
+	for (int r = 0; r < neural.row; r++) {
+		vector<double> row;
+		row.resize(column);
+		matrix.emplace_back(row);
+	}
+}
+
 NeuralMatrix::~NeuralMatrix() {
 }
 
