@@ -1,27 +1,18 @@
 #include "vector"
-class NeuralLayer;
+class NeuralMatrix;
 class Sample;
-//代价函数计算方式
-enum class CostFunc {
-	//均方差
-	MeanSquare,
-	//交叉熵
-	CrossEntropy
-};
-
-enum class ActiveFunc {
-	Linear, //线性
-	ReLU  //
-};
 
 class DigitalDistinguish {
 public:
+
+	DigitalDistinguish();
 	~DigitalDistinguish();
-	void StartTraining(const std::vector<Sample*>& data, int sampleSize = 100);
-	void GradiantDecent(float lRate, float costVal);
+
 	void PushLayer(unsigned int row, unsigned int colum, float bias);
-	float GetCostValue(const Sample* elem, ActiveFunc activeType, CostFunc costType);
+	void StartTraining(const std::vector<Sample*>& data, int sampleSize = 100);
+	void ForwardPass(Sample & sample);
+	void GradiantDecent(double lRate, double costVal);
 private:
-	std::vector<NeuralLayer*> layers;
+	std::vector<NeuralMatrix*> layers;
 };
 

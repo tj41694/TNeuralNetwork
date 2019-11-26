@@ -1,7 +1,7 @@
 #include "sqlite3/sqlite3.h"
 #include <stdio.h>
 #include "NumDistinguish.h"
-#include "NeuralLayer.h"
+#include "NeuralMatrix.h"
 #include "Sample.h"
 
 bool GetData(std::vector<Sample*>& datas) {

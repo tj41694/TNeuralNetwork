@@ -6,7 +6,7 @@
 
 using namespace std;
 
-Shuffle::Shuffle(const vector<Sample*>& datas) : size(datas.size()) {
+Shuffle::Shuffle(size_t size_) : size(size_) {
 	// obtain a time-based seed:
 	seed = (unsigned)std::chrono::system_clock::now().time_since_epoch().count();
 
@@ -22,7 +22,7 @@ void Shuffle::Random_Shuffle() {
 	curIndex = 0;
 }
 
-const vector<unsigned int>& Shuffle::GetShuffledData(int count) {
+const vector<size_t>& Shuffle::GetShuffledData(int count) {
 
 	shuffleIndeces.clear();
 	shuffleIndeces.resize(count);

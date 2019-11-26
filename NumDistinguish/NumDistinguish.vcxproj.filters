@@ -2,7 +2,6 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="NeuralLayer.cpp" />
     <ClCompile Include="NumDistinguish.cpp" />
     <ClCompile Include="sqlite3\shell.c">
       <Filter>External</Filter>
@@ -12,9 +11,9 @@
     </ClCompile>
     <ClCompile Include="Shuffle.cpp" />
     <ClCompile Include="Sample.cpp" />
+    <ClCompile Include="NeuralMatrix.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="NeuralLayer.h" />
     <ClInclude Include="NumDistinguish.h" />
     <ClInclude Include="sqlite3\sqlite3.h">
       <Filter>External</Filter>
@@ -24,6 +23,7 @@
     </ClInclude>
     <ClInclude Include="Shuffle.h" />
     <ClInclude Include="Sample.h" />
+    <ClInclude Include="NeuralMatrix.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="External">

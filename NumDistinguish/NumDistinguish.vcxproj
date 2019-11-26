@@ -131,7 +131,7 @@
   <ItemGroup>
     <ClCompile Include="Sample.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="NeuralLayer.cpp" />
+    <ClCompile Include="NeuralMatrix.cpp" />
     <ClCompile Include="NumDistinguish.cpp" />
     <ClCompile Include="Shuffle.cpp" />
     <ClCompile Include="sqlite3\shell.c" />
@@ -139,7 +139,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Sample.h" />
-    <ClInclude Include="NeuralLayer.h" />
+    <ClInclude Include="NeuralMatrix.h" />
     <ClInclude Include="NumDistinguish.h" />
     <ClInclude Include="Shuffle.h" />
     <ClInclude Include="sqlite3\sqlite3.h" />
