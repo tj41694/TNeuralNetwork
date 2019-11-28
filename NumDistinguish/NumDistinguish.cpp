@@ -13,7 +13,7 @@ void DigitalDistinguish::PushLayer(unsigned int row, unsigned int colum, float b
 void DigitalDistinguish::StartTraining(const vector<Sample*>& samples, int sampleSize) {
 	Shuffle shuff(samples.size());
 	double averageCost = 100000.0;
-	while (averageCost > 0.5) {
+	while (averageCost > 2.5) {
 		const vector<size_t>& randomIndeces = shuff.GetShuffledData(sampleSize); //获取指定数量的随机样本索引
 		double sampleTotalVal = 0;
 		for (size_t i = 0; i < randomIndeces.size(); i++) {
@@ -22,40 +22,98 @@ void DigitalDistinguish::StartTraining(const vector<Sample*>& samples, int sampl
 			sampleTotalVal += cost;
 		}
 		averageCost = sampleTotalVal / sampleSize; //样本均值
-		BackwardsPass(samples, randomIndeces, 0.05f, averageCost);
+		BackwardsPass(samples, randomIndeces, 0.1f, averageCost);
+		printf("Cost Value: %.5f \n", averageCost);
 	}
 }
 
 void DigitalDistinguish::ForwardPass(Sample& sample) {
-	for (size_t i = 0; i < layers.size() - 1; i++) {
+	size_t layerCount = layers.size() - 1;
+	for (size_t i = 0; i < layerCount; i++) {
 		sample.MatrixMultiply(*layers[i], ActiveFunc::ReLU);
 	}
-	sample.MatrixMultiply(*layers[layers.size() - 1], ActiveFunc::SoftMax);
+	sample.MatrixMultiply(*layers[layerCount], ActiveFunc::SoftMax);
+}
+
+void DigitalDistinguish::InverseTrans(Sample& sample) {
+	vector<SampleLayer>& acLayers = sample.activeLayers;
+	acLayers[acLayers.size() - 1].out[sample.trueValue] -= 1; //变换梯度
+	for (int i = acLayers.size() - 2; i > -1; i--) {
+		for (int r = 0; r < acLayers[i].out.size(); r++) {
+			acLayers[i].out[r] = 0;
+			const NeuralMatrix& weightLayer = *layers[i + 1LL];
+			for (int wr = 0; wr < weightLayer.row; wr++) {
+				acLayers[i].out[r] += weightLayer.matrix[wr][r] * acLayers[i + 1LL].out[wr];
+			}
+		}
+	}
+}
+
+int DigitalDistinguish::Distinguish(Sample& sample) {
+	ForwardPass(sample);
+	double v = -1;
+	int result = -1;
+	for (int i = 0; i < sample.activeLayers[sample.activeLayers.size() - 1].out.size(); i++) {
+		if (v < sample.activeLayers[sample.activeLayers.size() - 1].out[i]) {
+			result = i;
+			v = sample.activeLayers[sample.activeLayers.size() - 1].out[i];
+		}
+	}
+	return result;
+}
+
+void DigitalDistinguish::Test(const std::vector<Sample*>& data) {
+	int corectCount = 0;
+	for (auto s : data) {
+		int num = Distinguish(*s);
+		if (num == s->trueValue) {
+			corectCount++;
+		}
+	}
+	double corectRate = (double)corectCount / data.size();
+	printf("正确率: %.3f", corectRate);
 }
 
 void DigitalDistinguish::BackwardsPass(const vector<Sample*>& samples, const vector<size_t>& indeces, double lRate, double averageCostVal) {
-	for (long long i = layers.size() - 1; i > -1; i--) {
-		NeuralMatrix gradient(*layers[i], true);
-		if (i != 0) {
-			for (auto index : indeces) {
-				const Sample& sample = *samples[index];
-				gradient.bias += (sample.activeLayers[i].out[sample.trueValue] - 1);
-				for (int r = 0; r < gradient.matrix.size(); r++) {
-					for (int c = 0; c < gradient.matrix[r].size(); c++) {
-						if (r == sample.trueValue) {
-							gradient.matrix[r][c] = (sample.activeLayers[i].out[r] - 1) * sample.activeLayers[i - 1].out[r];
-						}
-						else {
-							gradient.matrix[r][c] = sample.activeLayers[i].out[r] * sample.activeLayers[i - 1].out[r];
-						}
+	vector<NeuralMatrix*> lyGradient;
+	for (long long i = 0; i < layers.size(); i++) {
+		NeuralMatrix* gradient = new NeuralMatrix(*layers[i], true);
+		lyGradient.push_back(gradient);
+	}
+	for (size_t index : indeces) {
+		Sample& sample = *samples[index];
+		InverseTrans(sample); //对样本进行逆变换以求梯度
+		for (long long i = 0; i < sample.activeLayers.size(); i++) {
+			//必须有中间层
+			if (i == 0) { //输入层
+				for (int r = 0; r < lyGradient[i]->matrix.size(); r++) {
+					for (int c = 0; c < lyGradient[i]->matrix[r].size(); c++) {
+						lyGradient[i]->matrix[r][c] = sample.originLayer[r] * (*layers[0]).matrix[r][c];
 					}
+					lyGradient[i]->bias += sample.activeLayers[i].out[r];
+				}
+			}
+			else {
+				for (int r = 0; r < lyGradient[i]->matrix.size(); r++) {
+					for (int c = 0; c < lyGradient[i]->matrix[r].size(); c++) {
+						lyGradient[i]->matrix[r][c] = sample.activeLayers[i].out[r] * (*layers[i]).matrix[r][c];
+					}
+					lyGradient[i]->bias += sample.activeLayers[i].out[r];
 				}
 			}
 		}
-		else {
-
+		sample.activeLayers.clear();
+	}
+	for (long long i = 0; i < layers.size(); i++) {
+		lyGradient[i]->bias /= indeces.size();
+		(layers[i])->bias -= lRate * lyGradient[i]->bias;
+		for (int r = 0; r < lyGradient[i]->matrix.size(); r++) {
+			for (int c = 0; c < lyGradient[i]->matrix[r].size(); c++) {
+				lyGradient[i]->matrix[r][c] /= 100.0;
+				(layers[i])->matrix[r][c] -= lRate * lyGradient[i]->matrix[r][c];
+			}
 		}
-		gradient.bias /= indeces.size();
+		delete lyGradient[i];
 	}
 }
 
