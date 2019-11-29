@@ -13,7 +13,9 @@ void DigitalDistinguish::PushLayer(unsigned int row, unsigned int colum, float b
 void DigitalDistinguish::StartTraining(const vector<Sample*>& samples, int sampleSize) {
 	Shuffle shuff(samples.size());
 	double averageCost = 100000.0;
-	while (averageCost > 2.5) {
+	int count = sampleSize;
+	int times = 0;
+	while (times++ < 5000) {
 		const vector<size_t>& randomIndeces = shuff.GetShuffledData(sampleSize); //获取指定数量的随机样本索引
 		double sampleTotalVal = 0;
 		for (size_t i = 0; i < randomIndeces.size(); i++) {
@@ -22,15 +24,16 @@ void DigitalDistinguish::StartTraining(const vector<Sample*>& samples, int sampl
 			sampleTotalVal += cost;
 		}
 		averageCost = sampleTotalVal / sampleSize; //样本均值
-		BackwardsPass(samples, randomIndeces, 0.1f, averageCost);
-		printf("Cost Value: %.5f \n", averageCost);
+		BackwardsPass(samples, randomIndeces, 0.15f, averageCost);
+		printf("Sample Count: %d \t Cost Value: %.5f \n", count, averageCost);
+		count += sampleSize;
 	}
 }
 
 void DigitalDistinguish::ForwardPass(Sample& sample) {
 	size_t layerCount = layers.size() - 1;
 	for (size_t i = 0; i < layerCount; i++) {
-		sample.MatrixMultiply(*layers[i], ActiveFunc::ReLU);
+		sample.MatrixMultiply(*layers[i], ActiveFunc::Linear);
 	}
 	sample.MatrixMultiply(*layers[layerCount], ActiveFunc::SoftMax);
 }
@@ -69,6 +72,7 @@ void DigitalDistinguish::Test(const std::vector<Sample*>& data) {
 		if (num == s->trueValue) {
 			corectCount++;
 		}
+		s->activeLayers.clear();
 	}
 	double corectRate = (double)corectCount / data.size();
 	printf("正确率: %.3f", corectRate);
@@ -84,21 +88,59 @@ void DigitalDistinguish::BackwardsPass(const vector<Sample*>& samples, const vec
 		Sample& sample = *samples[index];
 		InverseTrans(sample); //对样本进行逆变换以求梯度
 		for (long long i = 0; i < sample.activeLayers.size(); i++) {
-			//必须有中间层
 			if (i == 0) { //输入层
 				for (int r = 0; r < lyGradient[i]->matrix.size(); r++) {
-					for (int c = 0; c < lyGradient[i]->matrix[r].size(); c++) {
-						lyGradient[i]->matrix[r][c] = sample.originLayer[r] * (*layers[0]).matrix[r][c];
+					switch (sample.activeLayers[i].activeFunc) {
+					case ActiveFunc::ReLU:
+						if (sample.activeLayers[i].net[r] > 0) {
+							lyGradient[i]->bias += sample.activeLayers[i].out[r];
+							for (int c = 0; c < lyGradient[i]->matrix[r].size(); c++) {
+								lyGradient[i]->matrix[r][c] = sample.activeLayers[i].out[r] * sample.originLayer[c];
+							}
+						}
+						break;
+					case ActiveFunc::SoftMax:
+						for (int c = 0; c < lyGradient[i]->matrix[r].size(); c++) {
+							lyGradient[i]->matrix[r][c] = sample.activeLayers[i].out[r] * sample.originLayer[c];
+						}
+						lyGradient[i]->bias += sample.activeLayers[i].out[r];
+						break;
+					case ActiveFunc::Linear:
+						for (int c = 0; c < lyGradient[i]->matrix[r].size(); c++) {
+							lyGradient[i]->matrix[r][c] = sample.activeLayers[i].out[r] * sample.originLayer[c];
+						}
+						lyGradient[i]->bias += sample.activeLayers[i].out[r];
+						break;
+					default:
+						break;
 					}
-					lyGradient[i]->bias += sample.activeLayers[i].out[r];
 				}
 			}
 			else {
 				for (int r = 0; r < lyGradient[i]->matrix.size(); r++) {
-					for (int c = 0; c < lyGradient[i]->matrix[r].size(); c++) {
-						lyGradient[i]->matrix[r][c] = sample.activeLayers[i].out[r] * (*layers[i]).matrix[r][c];
+					switch (sample.activeLayers[i].activeFunc) {
+					case ActiveFunc::ReLU:
+						if (sample.activeLayers[i].net[r] > 0) {
+							for (int c = 0; c < lyGradient[i]->matrix[r].size(); c++) {
+								lyGradient[i]->matrix[r][c] = sample.activeLayers[i].out[r] * sample.activeLayers[i - 1].out[c];
+							}
+							lyGradient[i]->bias += sample.activeLayers[i].out[r];
+						}
+						break;
+					case ActiveFunc::SoftMax:
+						for (int c = 0; c < lyGradient[i]->matrix[r].size(); c++) {
+							lyGradient[i]->matrix[r][c] = sample.activeLayers[i].out[r] * sample.activeLayers[i - 1].out[c];
+						}
+						lyGradient[i]->bias += sample.activeLayers[i].out[r];
+						break;
+					case ActiveFunc::Linear:
+						for (int c = 0; c < lyGradient[i]->matrix[r].size(); c++) {
+							lyGradient[i]->matrix[r][c] = sample.activeLayers[i].out[r] * sample.activeLayers[i - 1].out[c];
+						}
+						lyGradient[i]->bias += sample.activeLayers[i].out[r];
+					default:
+						break;
 					}
-					lyGradient[i]->bias += sample.activeLayers[i].out[r];
 				}
 			}
 		}
@@ -109,7 +151,7 @@ void DigitalDistinguish::BackwardsPass(const vector<Sample*>& samples, const vec
 		(layers[i])->bias -= lRate * lyGradient[i]->bias;
 		for (int r = 0; r < lyGradient[i]->matrix.size(); r++) {
 			for (int c = 0; c < lyGradient[i]->matrix[r].size(); c++) {
-				lyGradient[i]->matrix[r][c] /= 100.0;
+				lyGradient[i]->matrix[r][c] /= indeces.size();
 				(layers[i])->matrix[r][c] -= lRate * lyGradient[i]->matrix[r][c];
 			}
 		}
@@ -117,9 +159,7 @@ void DigitalDistinguish::BackwardsPass(const vector<Sample*>& samples, const vec
 	}
 }
 
-DigitalDistinguish::DigitalDistinguish() {
-
-}
+DigitalDistinguish::DigitalDistinguish() {}
 
 DigitalDistinguish::~DigitalDistinguish() {
 	for (unsigned int i = 0; i < layers.size(); i++) {

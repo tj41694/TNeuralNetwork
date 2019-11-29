@@ -22,11 +22,11 @@ Sample::Sample(int num_, const float* data, unsigned int floatCount) {
 
 void Sample::MatrixMultiply(const NeuralMatrix& neuralMat, ActiveFunc func) {
 
-	vector<double>* lastLayer;
+	vector<double>* lastActiveLayer;
 
-	activeLayers.size() == 0 ? lastLayer = &originLayer : lastLayer = &activeLayers[activeLayers.size() - 1].out;
+	activeLayers.size() == 0 ? lastActiveLayer = &originLayer : lastActiveLayer = &activeLayers[activeLayers.size() - 1].out;
 
-	if (lastLayer->size() != neuralMat.column) { printf("err.. Dimension not match..\n"); return; }
+	if (lastActiveLayer->size() != neuralMat.column) { printf("err.. Dimension not match..\n"); return; }
 
 	SampleLayer layer;
 	layer.activeFunc = func;
@@ -36,7 +36,7 @@ void Sample::MatrixMultiply(const NeuralMatrix& neuralMat, ActiveFunc func) {
 	for (int r = 0; r < neuralMat.row; r++) { //矩阵乘数据(向量)
 		double val = 0;
 		for (int c = 0; c < neuralMat.column; c++) {
-			val += (*lastLayer)[c] * neuralMat.matrix[r][c];
+			val += (*lastActiveLayer)[c] * neuralMat.matrix[r][c];
 		}
 		layer.net[r] = val + neuralMat.bias;
 	}
