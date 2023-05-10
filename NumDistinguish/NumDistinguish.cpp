@@ -40,7 +40,7 @@ void DigitalDistinguish::ForwardPass(Sample& sample) {
 
 void DigitalDistinguish::InverseTrans(Sample& sample) {
 	vector<SampleLayer>& acLayers = sample.activeLayers;
-	acLayers[acLayers.size() - 1].out[sample.trueValue] -= 1; //变换梯度
+	acLayers[acLayers.size() - 1].out[sample.m_realValue] -= 1; //变换梯度
 	for (int i = acLayers.size() - 2; i > -1; i--) {
 		for (int r = 0; r < acLayers[i].out.size(); r++) {
 			acLayers[i].out[r] = 0;
@@ -69,13 +69,13 @@ void DigitalDistinguish::Test(const std::vector<Sample*>& data) {
 	int corectCount = 0;
 	for (auto s : data) {
 		int num = Distinguish(*s);
-		if (num == s->trueValue) {
+		if (num == s->m_realValue) {
 			corectCount++;
 		}
 		s->activeLayers.clear();
 	}
-	double corectRate = (double)corectCount / data.size();
-	printf("正确率: %.3f", corectRate);
+	double corectRate = 100.0 * (double)corectCount / data.size() ;
+	printf("正确率: %.3f\%\n", corectRate);
 }
 
 void DigitalDistinguish::BackwardsPass(const vector<Sample*>& samples, const vector<size_t>& indeces, double lRate, double averageCostVal) {
@@ -95,19 +95,19 @@ void DigitalDistinguish::BackwardsPass(const vector<Sample*>& samples, const vec
 						if (sample.activeLayers[i].net[r] > 0) {
 							lyGradient[i]->bias += sample.activeLayers[i].out[r];
 							for (int c = 0; c < lyGradient[i]->matrix[r].size(); c++) {
-								lyGradient[i]->matrix[r][c] = sample.activeLayers[i].out[r] * sample.originLayer[c];
+								lyGradient[i]->matrix[r][c] = sample.activeLayers[i].out[r] * sample.m_data[c];
 							}
 						}
 						break;
 					case ActiveFunc::SoftMax:
 						for (int c = 0; c < lyGradient[i]->matrix[r].size(); c++) {
-							lyGradient[i]->matrix[r][c] = sample.activeLayers[i].out[r] * sample.originLayer[c];
+							lyGradient[i]->matrix[r][c] = sample.activeLayers[i].out[r] * sample.m_data[c];
 						}
 						lyGradient[i]->bias += sample.activeLayers[i].out[r];
 						break;
 					case ActiveFunc::Linear:
 						for (int c = 0; c < lyGradient[i]->matrix[r].size(); c++) {
-							lyGradient[i]->matrix[r][c] = sample.activeLayers[i].out[r] * sample.originLayer[c];
+							lyGradient[i]->matrix[r][c] = sample.activeLayers[i].out[r] * sample.m_data[c];
 						}
 						lyGradient[i]->bias += sample.activeLayers[i].out[r];
 						break;

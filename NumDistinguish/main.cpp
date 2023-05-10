@@ -34,9 +34,9 @@ bool GetData(std::vector<Sample*>& datas, int type) {
 
 int main() {
 	DigitalDistinguish model;
-	model.PushLayer(16, 784, 0);
-	model.PushLayer(16, 16, 0);
-	model.PushLayer(10, 16, 0);
+	model.PushLayer(24, 784, 10);
+	model.PushLayer(16, 24, 5);
+	model.PushLayer(10, 16, 1);
 	std::vector<Sample*> datas;
 	if (GetData(datas, 2)) {
 		model.StartTraining(datas, 100);

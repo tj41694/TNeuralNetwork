@@ -29,8 +29,8 @@ struct SampleLayer {
 
 class Sample {
 public:
-	int								trueValue;
-	std::vector<double>				originLayer;
+	int							m_realValue;
+	std::vector<double>				m_data;
 	std::vector<SampleLayer>		activeLayers;
 public:
 

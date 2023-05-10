@@ -4,27 +4,27 @@
 
 using namespace std;
 Sample::Sample() {
-	trueValue = 0;
+	m_realValue = 0;
 }
 
 Sample::Sample(const Sample& sample_) {
-	originLayer = sample_.originLayer;
-	trueValue = sample_.trueValue;
+	m_data = sample_.m_data;
+	m_realValue = sample_.m_realValue;
 }
 
 Sample::Sample(int num_, const float* data, unsigned int floatCount) {
-	originLayer.resize(floatCount);
+	m_data.resize(floatCount);
 	for (unsigned int i = 0; i < floatCount; i++) {
-		originLayer[i] = data[i];
+		m_data[i] = data[i];
 	}
-	trueValue = num_;
+	m_realValue = num_;
 }
 
 void Sample::MatrixMultiply(const NeuralMatrix& neuralMat, ActiveFunc func) {
 
 	vector<double>* lastActiveLayer;
 
-	activeLayers.size() == 0 ? lastActiveLayer = &originLayer : lastActiveLayer = &activeLayers[activeLayers.size() - 1].out;
+	activeLayers.size() == 0 ? lastActiveLayer = &m_data : lastActiveLayer = &activeLayers[activeLayers.size() - 1].out;
 
 	if (lastActiveLayer->size() != neuralMat.column) { printf("err.. Dimension not match..\n"); return; }
 
@@ -77,12 +77,12 @@ double Sample::GetCostValue(CostFunc func) {
 		const vector<double> & outputLayer = activeLayers[activeLayers.size() - 1].out;
 		switch (func) {
 		case CostFunc::CrossEntropy:
-			costVal = -log(outputLayer[trueValue]);
+			costVal = -log(outputLayer[m_realValue]);
 			break;
 		case CostFunc::MeanSquare:
 		default:
 			for (unsigned int i = 0; i < outputLayer.size(); i++) {
-				if (i == trueValue) {
+				if (i == m_realValue) {
 					costVal += (outputLayer[i] - 1.0) * (outputLayer[i] - 1.0);
 				}
 				else {
@@ -98,9 +98,9 @@ double Sample::GetCostValue(CostFunc func) {
 
 Sample& Sample::operator=(const Sample& sample_) {
 	if (this == &sample_) { return *this; }
-	originLayer = sample_.originLayer;
+	m_data = sample_.m_data;
 	activeLayers = sample_.activeLayers;
-	trueValue = sample_.trueValue;
+	m_realValue = sample_.m_realValue;
 	return *this;
 }
 
