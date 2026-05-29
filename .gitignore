@@ -343,6 +343,7 @@ healthchecksdb
 
 # CMake build output
 build/
+compile_commands.json
 
 # Backup folder for Package Reference Convert tool in Visual Studio 2017
 MigrationBackup/
