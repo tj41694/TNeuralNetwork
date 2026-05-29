@@ -2,7 +2,20 @@
 
 ## 构建
 
-仅限 Windows 的 Visual Studio 2019 (v142) C++17 项目。打开 `TNeuralNetwork.sln` 直接构建。无 CMake，不支持 Linux。
+CMake + Ninja + Clang 跨平台构建。
+
+```bash
+# 配置（生成 build.ninja）
+cmake -G Ninja -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang -B build
+
+# 编译
+ninja -C build
+
+# 运行（需在 resources/test.db 同级目录）
+./build/NumDistinguish
+```
+
+最低要求：CMake ≥ 3.15，Ninja，Clang。
 
 ## 项目结构
 
