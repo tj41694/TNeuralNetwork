@@ -46,3 +46,4 @@ ninja -C build
 - 源码含中文注释。
 - MIT 协议，作者 Jia Tang。
 - `.gitignore` 为标准 Visual Studio 模板。
+- **不要自动提交代码。** 只有用户明确要求时才执行 git commit。
