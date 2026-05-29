@@ -32,7 +32,7 @@ void Sample::MatrixMultiply(const NeuralMatrix& neuralMat, ActiveFunc func) {
 
 	layer.net.resize(neuralMat.row);
 	layer.out.resize(neuralMat.row);
-	for (int r = 0; r < neuralMat.row; r++) { //���������(����)
+	for (int r = 0; r < neuralMat.row; r++) { // 计算输出（权重×输入）
 		double val = 0;
 		for (int c = 0; c < neuralMat.column; c++) {
 			val += (*lastActiveLayer)[c] * neuralMat.matrix[r][c];
@@ -49,13 +49,13 @@ void Sample::MatrixMultiply(const NeuralMatrix& neuralMat, ActiveFunc func) {
 		break;
 	case ActiveFunc::SoftMax:
 	{
-		double total = 0; //�����
+		double total = 0; // 求和
 		for (unsigned int i = 0; i < layer.net.size(); i++) {
 			//printf("ori: %f\n", layer.net.activation[i]);
 			layer.out[i] = exp(layer.net[i]);
 			total += layer.out[i];
 		}
-		for (unsigned int i = 0; i < layer.net.size(); i++) { //�ٸ�ֵ
+		for (unsigned int i = 0; i < layer.net.size(); i++) { // 归一化
 			layer.out[i] = layer.out[i] / total;
 			//printf("softmax: %f\n", layer.out.activation[i]);
 		}

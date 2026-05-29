@@ -16,14 +16,14 @@ void DigitalDistinguish::StartTraining(const vector<Sample*>& samples, int sampl
 	int count = sampleSize;
 	int times = 0;
 	while (times++ < 5000) {
-		const vector<size_t>& randomIndeces = shuff.GetShuffledData(sampleSize); //��ȡָ�������������������
+		const vector<size_t>& randomIndeces = shuff.GetShuffledData(sampleSize); // 获取打乱的随机索引
 		double sampleTotalVal = 0;
 		for (size_t i = 0; i < randomIndeces.size(); i++) {
 			ForwardPass(*samples[randomIndeces[i]]);
 			double cost = samples[randomIndeces[i]]->GetCostValue(CostFunc::CrossEntropy);
 			sampleTotalVal += cost;
 		}
-		averageCost = sampleTotalVal / sampleSize; //������ֵ
+		averageCost = sampleTotalVal / sampleSize; // 平均值
 		BackwardsPass(samples, randomIndeces, 0.15f, averageCost);
 		printf("Sample Count: %d \t Cost Value: %.5f \n", count, averageCost);
 		count += sampleSize;
@@ -40,7 +40,7 @@ void DigitalDistinguish::ForwardPass(Sample& sample) {
 
 void DigitalDistinguish::InverseTrans(Sample& sample) {
 	vector<SampleLayer>& acLayers = sample.activeLayers;
-	acLayers[acLayers.size() - 1].out[sample.m_realValue] -= 1; //�任�ݶ�
+	acLayers[acLayers.size() - 1].out[sample.m_realValue] -= 1; // 变换梯度
 	for (int i = acLayers.size() - 2; i > -1; i--) {
 		for (int r = 0; r < acLayers[i].out.size(); r++) {
 			acLayers[i].out[r] = 0;
@@ -86,9 +86,9 @@ void DigitalDistinguish::BackwardsPass(const vector<Sample*>& samples, const vec
 	}
 	for (size_t index : indeces) {
 		Sample& sample = *samples[index];
-		InverseTrans(sample); //������������任�����ݶ�
+		InverseTrans(sample); // 反向传播：变换梯度
 		for (long long i = 0; i < sample.activeLayers.size(); i++) {
-			if (i == 0) { //�����
+			if (i == 0) { // 输入层
 				for (int r = 0; r < lyGradient[i]->matrix.size(); r++) {
 					switch (sample.activeLayers[i].activeFunc) {
 					case ActiveFunc::ReLU:

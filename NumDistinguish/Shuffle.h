@@ -13,8 +13,8 @@ private:
 	void Random_Shuffle();
 
 private:
-	std::vector<size_t>	randomIndeces;	//Ëæ»úË÷Òı³Ø
-	std::vector<size_t>	shuffleIndeces;	//¹©·µ»ØµÄË÷Òı³Ø
+	std::vector<size_t>	randomIndeces;	//éšæœºç´¢å¼•æ± 
+	std::vector<size_t>	shuffleIndeces;	//ä¾›è¿”å›çš„ç´¢å¼•æ± 
 	const size_t				size;
 	size_t						curIndex = 0;
 	unsigned					seed;

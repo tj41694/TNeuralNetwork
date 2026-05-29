@@ -11,11 +11,11 @@ enum class ActiveFunc {
 	SoftMax
 };
 
-//´ú¼Ûº¯Êı¼ÆËã·½Ê½
+//ä»£ä»·å‡½æ•°è®¡ç®—æ–¹å¼
 enum class CostFunc {
-	//¾ù·½²î
+	//å‡æ–¹å·®
 	MeanSquare,
-	//½»²æìØ
+	//äº¤å‰ç†µ
 	CrossEntropy
 };
 
