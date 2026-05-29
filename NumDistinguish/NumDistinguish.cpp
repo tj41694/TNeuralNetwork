@@ -16,14 +16,14 @@ void DigitalDistinguish::StartTraining(const vector<Sample*>& samples, int sampl
 	int count = sampleSize;
 	int times = 0;
 	while (times++ < 5000) {
-		const vector<size_t>& randomIndeces = shuff.GetShuffledData(sampleSize); //»ñÈ¡Ö¸¶¨ÊýÁ¿µÄËæ»úÑù±¾Ë÷Òý
+		const vector<size_t>& randomIndeces = shuff.GetShuffledData(sampleSize); //ï¿½ï¿½È¡Ö¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 		double sampleTotalVal = 0;
 		for (size_t i = 0; i < randomIndeces.size(); i++) {
 			ForwardPass(*samples[randomIndeces[i]]);
 			double cost = samples[randomIndeces[i]]->GetCostValue(CostFunc::CrossEntropy);
 			sampleTotalVal += cost;
 		}
-		averageCost = sampleTotalVal / sampleSize; //Ñù±¾¾ùÖµ
+		averageCost = sampleTotalVal / sampleSize; //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öµ
 		BackwardsPass(samples, randomIndeces, 0.15f, averageCost);
 		printf("Sample Count: %d \t Cost Value: %.5f \n", count, averageCost);
 		count += sampleSize;
@@ -40,7 +40,7 @@ void DigitalDistinguish::ForwardPass(Sample& sample) {
 
 void DigitalDistinguish::InverseTrans(Sample& sample) {
 	vector<SampleLayer>& acLayers = sample.activeLayers;
-	acLayers[acLayers.size() - 1].out[sample.m_realValue] -= 1; //±ä»»ÌÝ¶È
+	acLayers[acLayers.size() - 1].out[sample.m_realValue] -= 1; //ï¿½ä»»ï¿½Ý¶ï¿½
 	for (int i = acLayers.size() - 2; i > -1; i--) {
 		for (int r = 0; r < acLayers[i].out.size(); r++) {
 			acLayers[i].out[r] = 0;
@@ -75,7 +75,7 @@ void DigitalDistinguish::Test(const std::vector<Sample*>& data) {
 		s->activeLayers.clear();
 	}
 	double corectRate = 100.0 * (double)corectCount / data.size() ;
-	printf("ÕýÈ·ÂÊ: %.3f\%\n", corectRate);
+	printf("accuracy: %.3f%%\n", corectRate);
 }
 
 void DigitalDistinguish::BackwardsPass(const vector<Sample*>& samples, const vector<size_t>& indeces, double lRate, double averageCostVal) {
@@ -86,9 +86,9 @@ void DigitalDistinguish::BackwardsPass(const vector<Sample*>& samples, const vec
 	}
 	for (size_t index : indeces) {
 		Sample& sample = *samples[index];
-		InverseTrans(sample); //¶ÔÑù±¾½øÐÐÄæ±ä»»ÒÔÇóÌÝ¶È
+		InverseTrans(sample); //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ä»»ï¿½ï¿½ï¿½ï¿½ï¿½Ý¶ï¿½
 		for (long long i = 0; i < sample.activeLayers.size(); i++) {
-			if (i == 0) { //ÊäÈë²ã
+			if (i == 0) { //ï¿½ï¿½ï¿½ï¿½ï¿½
 				for (int r = 0; r < lyGradient[i]->matrix.size(); r++) {
 					switch (sample.activeLayers[i].activeFunc) {
 					case ActiveFunc::ReLU:

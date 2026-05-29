@@ -1,5 +1,4 @@
 #include "Sample.h"
-#include <corecrt_memory.h>
 #include "NeuralMatrix.h"
 
 using namespace std;
@@ -33,7 +32,7 @@ void Sample::MatrixMultiply(const NeuralMatrix& neuralMat, ActiveFunc func) {
 
 	layer.net.resize(neuralMat.row);
 	layer.out.resize(neuralMat.row);
-	for (int r = 0; r < neuralMat.row; r++) { //¾ØÕó³ËÊý¾Ý(ÏòÁ¿)
+	for (int r = 0; r < neuralMat.row; r++) { //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½(ï¿½ï¿½ï¿½ï¿½)
 		double val = 0;
 		for (int c = 0; c < neuralMat.column; c++) {
 			val += (*lastActiveLayer)[c] * neuralMat.matrix[r][c];
@@ -50,13 +49,13 @@ void Sample::MatrixMultiply(const NeuralMatrix& neuralMat, ActiveFunc func) {
 		break;
 	case ActiveFunc::SoftMax:
 	{
-		double total = 0; //ÏÈÇóºÍ
+		double total = 0; //ï¿½ï¿½ï¿½ï¿½ï¿½
 		for (unsigned int i = 0; i < layer.net.size(); i++) {
 			//printf("ori: %f\n", layer.net.activation[i]);
 			layer.out[i] = exp(layer.net[i]);
 			total += layer.out[i];
 		}
-		for (unsigned int i = 0; i < layer.net.size(); i++) { //ÔÙ¸³Öµ
+		for (unsigned int i = 0; i < layer.net.size(); i++) { //ï¿½Ù¸ï¿½Öµ
 			layer.out[i] = layer.out[i] / total;
 			//printf("softmax: %f\n", layer.out.activation[i]);
 		}

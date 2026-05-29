@@ -7,7 +7,7 @@
 bool GetData(std::vector<Sample*>& datas, int type) {
 	sqlite3* db;
 	if (SQLITE_OK != sqlite3_open("resources/test.db", &db)) {
-		printf(sqlite3_errmsg(db));
+		printf("%s", sqlite3_errmsg(db));
 		return false;
 	}
 	sqlite3_stmt* pStmt;

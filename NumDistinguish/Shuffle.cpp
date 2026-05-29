@@ -1,7 +1,7 @@
 #include "Shuffle.h"
-#include "NumDistinguish.h"
+#include <algorithm>
 #include <random>
-#include <chrono>       // std::chrono::system_clock
+#include <chrono>
 #include "Sample.h"
 
 using namespace std;
