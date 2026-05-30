@@ -25,7 +25,7 @@ void Sample::MatrixMultiply(const NeuralMatrix& neuralMat, ActiveFunc func) {
 
 	activeLayers.size() == 0 ? lastActiveLayer = &m_data : lastActiveLayer = &activeLayers[activeLayers.size() - 1].out;
 
-	if (lastActiveLayer->size() != neuralMat.column) { printf("err.. Dimension not match..\n"); return; }
+	if ((int)lastActiveLayer->size() != neuralMat.column) { printf("err.. Dimension not match..\n"); return; }
 
 	SampleLayer layer;
 	layer.activeFunc = func;
@@ -80,7 +80,7 @@ double Sample::GetCostValue(CostFunc func) {
 			break;
 		case CostFunc::MeanSquare:
 		default:
-			for (unsigned int i = 0; i < outputLayer.size(); i++) {
+			for (int i = 0; i < (int)outputLayer.size(); i++) {
 				if (i == m_realValue) {
 					costVal += (outputLayer[i] - 1.0) * (outputLayer[i] - 1.0);
 				}
