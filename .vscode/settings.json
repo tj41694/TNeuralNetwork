@@ -6,7 +6,7 @@
         "cwd": "${workspaceFolder}"
     },
     "C_Cpp.intelliSenseEngine": "disabled",
-    "clangd.path": "/usr/bin/clangd",
+    "clangd.path": "clangd",
     "clangd.arguments": [
         "--compile-commands-dir=${workspaceFolder}/build",
         "--background-index",

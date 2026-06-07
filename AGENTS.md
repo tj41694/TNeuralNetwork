@@ -1,5 +1,7 @@
 # TNeuralNetwork — AGENTS.md
 
+- **不要自动提交代码。** 只有用户明确要求时才执行 git commit。
+
 ## 构建
 
 CMake + Ninja + Clang 跨平台构建。
@@ -42,8 +44,6 @@ ninja -C build
 
 ## 备注
 
+- 如果注释有中文，请采用UTF-8编码
 - 无测试、无 CI、无格式化/静态检查配置。
 - 源码含中文注释。
-- MIT 协议，作者 Jia Tang。
-- `.gitignore` 为标准 Visual Studio 模板。
-- **不要自动提交代码。** 只有用户明确要求时才执行 git commit。

@@ -3,7 +3,7 @@
 #include "NumDistinguish.h"
 #include "Sample.h"
 
-bool GetData(std::vector<Sample*>& datas, int type) {
+static bool GetData(std::vector<Sample*>& datas, int type) {
 	sqlite3* db = nullptr;
 	if (SQLITE_OK != sqlite3_open("resources/test.db", &db)) {
 		printf("%s", sqlite3_errmsg(db));
