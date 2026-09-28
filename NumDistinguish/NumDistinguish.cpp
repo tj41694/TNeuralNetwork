@@ -159,10 +159,14 @@ void DigitalDistinguish::BackwardsPass(const vector<Sample*>& samples, const vec
 	}
 }
 
-DigitalDistinguish::DigitalDistinguish() {}
+DigitalDistinguish::DigitalDistinguish()
+{
+}
 
-DigitalDistinguish::~DigitalDistinguish() {
-	for (unsigned int i = 0; i < layers.size(); i++) {
-		delete layers[i];
-	}
+DigitalDistinguish::~DigitalDistinguish()
+{
+    for (auto layer : layers)
+    {
+        layer;
+    }
 }
