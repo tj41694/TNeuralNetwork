@@ -18,6 +18,5 @@ SpacesInSquareBrackets: false
 Standard: Cpp11
 
 ---
-Language: Cpp
+Language: C
 DisableFormat: true
-IncludeIsMainRegex: 'sqlite3/.*'
