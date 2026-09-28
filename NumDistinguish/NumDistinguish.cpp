@@ -167,6 +167,6 @@ DigitalDistinguish::~DigitalDistinguish()
 {
     for (auto layer : layers)
     {
-        layer;
+        delete layer;
     }
 }

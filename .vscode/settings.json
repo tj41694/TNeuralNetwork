@@ -1,15 +1,11 @@
 {
-    "cmake.configureOnOpen": true,
-    "cmake.generator": "Ninja",
-    "cmake.buildDirectory": "${workspaceFolder}/build",
-    "cmake.debugConfig": {
-        "cwd": "${workspaceFolder}"
+    "cmake.configureSettings": {
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
     },
-    "C_Cpp.intelliSenseEngine": "disabled",
-    "clangd.path": "clangd",
-    "clangd.arguments": [
-        "--compile-commands-dir=${workspaceFolder}/build",
-        "--background-index",
-        "--header-insertion=never"
-    ]
+    "files.associations": {
+        "*.h": "cpp",
+        "*.c": "c"
+    }
 }
