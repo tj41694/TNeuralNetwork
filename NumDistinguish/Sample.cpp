@@ -28,8 +28,8 @@ void Sample::MatrixMultiply(const NeuralMatrix &neuralMat, ActiveFunc func)
 
     vector<double> *lastActiveLayer;
 
-    activeLayers.size() == 0 ? lastActiveLayer = &m_data
-                             : lastActiveLayer = &activeLayers[activeLayers.size() - 1].out;
+    m_activeLayers.size() == 0 ? lastActiveLayer = &m_data
+                             : lastActiveLayer = &m_activeLayers[m_activeLayers.size() - 1].out;
 
     if ((int) lastActiveLayer->size() != neuralMat.column)
     {
@@ -83,14 +83,14 @@ void Sample::MatrixMultiply(const NeuralMatrix &neuralMat, ActiveFunc func)
         }
         break;
     }
-    activeLayers.push_back(layer);
+    m_activeLayers.push_back(layer);
 }
 
 double Sample::GetCostValue(CostFunc func)
 {
     if (!costValValid)
     {
-        const vector<double> &outputLayer = activeLayers[activeLayers.size() - 1].out;
+        const vector<double> &outputLayer = m_activeLayers[m_activeLayers.size() - 1].out;
         switch (func)
         {
         case CostFunc::CrossEntropy:
@@ -123,7 +123,7 @@ Sample &Sample::operator=(const Sample &sample_)
         return *this;
     }
     m_data = sample_.m_data;
-    activeLayers = sample_.activeLayers;
+    m_activeLayers = sample_.m_activeLayers;
     m_realValue = sample_.m_realValue;
     return *this;
 }

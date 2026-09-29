@@ -1,13 +1,14 @@
 #pragma once
 #include <math.h>
-#include <stdio.h>
 #include <vector>
 
+using namespace std;
 class NeuralMatrix;
 
 enum class ActiveFunc
 {
     Linear,
+    Sigmoid,
     ReLU,
     SoftMax
 };
@@ -23,8 +24,8 @@ enum class CostFunc
 
 struct SampleLayer
 {
-    std::vector<double> net;
-    std::vector<double> out;
+    vector<double> net;
+    vector<double> out;
     ActiveFunc activeFunc;
 };
 
@@ -32,8 +33,8 @@ class Sample
 {
   public:
     int m_realValue;
-    std::vector<double> m_data;
-    std::vector<SampleLayer> activeLayers;
+    vector<double> m_data;
+    vector<SampleLayer> m_activeLayers;
 
   public:
     Sample();

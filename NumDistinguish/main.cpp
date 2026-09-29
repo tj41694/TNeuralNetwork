@@ -3,7 +3,7 @@
 #include "sqlite3/sqlite3.h"
 #include <stdio.h>
 
-static bool GetData(std::vector<Sample *> &datas, int type)
+static bool GetData(vector<Sample *> &datas, int type)
 {
     sqlite3 *db = nullptr;
     if (SQLITE_OK != sqlite3_open("resources/test.db", &db))
@@ -44,12 +44,12 @@ int main()
     model.PushLayer(24, 784, 10);
     model.PushLayer(16, 24, 5);
     model.PushLayer(10, 16, 1);
-    std::vector<Sample *> datas;
+    vector<Sample *> datas;
     if (GetData(datas, 2))
     {
         model.StartTraining(datas, 100);
     }
-    std::vector<Sample *> datas1;
+    vector<Sample *> datas1;
     if (GetData(datas1, 1))
     {
         model.Test(datas1);

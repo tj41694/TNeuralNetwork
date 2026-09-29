@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+using namespace std;
 class NeuralMatrix
 {
   public:
@@ -8,7 +9,7 @@ class NeuralMatrix
     ~NeuralMatrix();
 
   public:
-    std::vector<std::vector<double>> matrix;
+    vector<vector<double>> matrix;
     int row;
     int column;
     double bias;

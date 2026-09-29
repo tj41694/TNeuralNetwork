@@ -1,5 +1,4 @@
 #include "Shuffle.h"
-#include "Sample.h"
 #include <algorithm>
 #include <chrono>
 #include <random>
@@ -9,7 +8,7 @@ using namespace std;
 Shuffle::Shuffle(size_t size_) : size(size_)
 {
     // obtain a time-based seed:
-    seed = (unsigned) std::chrono::system_clock::now().time_since_epoch().count();
+    seed = (unsigned) chrono::system_clock::now().time_since_epoch().count();
 
     randomIndeces.resize(size);
 
@@ -23,7 +22,7 @@ Shuffle::Shuffle(size_t size_) : size(size_)
 
 void Shuffle::Random_Shuffle()
 {
-    std::shuffle(randomIndeces.begin(), randomIndeces.end(), std::default_random_engine(seed));
+    shuffle(randomIndeces.begin(), randomIndeces.end(), default_random_engine(seed));
     curIndex = 0;
 }
 
