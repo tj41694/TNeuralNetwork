@@ -1,37 +1,60 @@
 #include "Sample.h"
-#include "NeuralMatrix.h"
+#include <cstdlib> // Header file needed to use srand and rand
+#include <ctime>   // Header file needed to use time
 
 using namespace std;
+
+TnVector TnVector::operator*(const TnLayer &layer) const
+{
+    TnVector newVector;
+    newVector.resize(layer.row(), 0);
+    for (int r = 0; r < layer.row(); r++)
+    {
+        for (int c = 0; c < layer.col(); c++)
+        {
+            newVector[r] += at(c) * layer.matrix[r][c];
+        }
+        newVector[r] = newVector[r] + layer.bias[r];
+    }
+    return newVector;
+}
+
 Sample::Sample()
 {
     m_realValue = 0;
 }
 
-Sample::Sample(const Sample &sample_)
+Sample::Sample(const Sample &sample_) : TnVector(sample_)
 {
-    m_data = sample_.m_data;
     m_realValue = sample_.m_realValue;
 }
 
 Sample::Sample(int num_, const float *data, unsigned int floatCount)
 {
-    m_data.resize(floatCount);
+    resize(floatCount);
     for (unsigned int i = 0; i < floatCount; i++)
     {
-        m_data[i] = data[i];
+        (*this)[i] = data[i];
     }
     m_realValue = num_;
 }
 
-void Sample::MatrixMultiply(const NeuralMatrix &neuralMat, ActiveFunc func)
+Sample Sample::operator*(const TnLayer &matrix) const
+{
+    Sample result(*this);
+    static_cast<TnVector &>(result) = TnVector::operator*(matrix);
+    return result;
+}
+
+void Sample::MatrixMultiply(const TnLayer &neuralMat, ActiveFunc func)
 {
 
     vector<double> *lastActiveLayer;
 
-    m_activeLayers.size() == 0 ? lastActiveLayer = &m_data
-                             : lastActiveLayer = &m_activeLayers[m_activeLayers.size() - 1].out;
+    m_activeLayers.size() == 0 ? lastActiveLayer = this
+                               : lastActiveLayer = &m_activeLayers[m_activeLayers.size() - 1].out;
 
-    if ((int) lastActiveLayer->size() != neuralMat.column)
+    if ((int) lastActiveLayer->size() != neuralMat.col())
     {
         printf("err.. Dimension not match..\n");
         return;
@@ -40,12 +63,12 @@ void Sample::MatrixMultiply(const NeuralMatrix &neuralMat, ActiveFunc func)
     SampleLayer layer;
     layer.activeFunc = func;
 
-    layer.net.resize(neuralMat.row);
-    layer.out.resize(neuralMat.row);
-    for (int r = 0; r < neuralMat.row; r++)
+    layer.net.resize(neuralMat.row());
+    layer.out.resize(neuralMat.row());
+    for (int r = 0; r < neuralMat.row(); r++)
     { // 计算输出（权重×输入）
         double val = 0;
-        for (int c = 0; c < neuralMat.column; c++)
+        for (int c = 0; c < neuralMat.col(); c++)
         {
             val += (*lastActiveLayer)[c] * neuralMat.matrix[r][c];
         }
@@ -88,46 +111,75 @@ void Sample::MatrixMultiply(const NeuralMatrix &neuralMat, ActiveFunc func)
 
 double Sample::GetCostValue(CostFunc func)
 {
-    if (!costValValid)
+    double costVal = 0;
+    switch (func)
     {
-        const vector<double> &outputLayer = m_activeLayers[m_activeLayers.size() - 1].out;
-        switch (func)
+    case CostFunc::CrossEntropy:
+        costVal = -log((*this)[m_realValue]);
+        break;
+    case CostFunc::MeanSquare:
+    default:
+        for (int i = 0; i < (int) (*this).size(); i++)
         {
-        case CostFunc::CrossEntropy:
-            costVal = -log(outputLayer[m_realValue]);
-            break;
-        case CostFunc::MeanSquare:
-        default:
-            for (int i = 0; i < (int) outputLayer.size(); i++)
+            if (i == m_realValue)
             {
-                if (i == m_realValue)
-                {
-                    costVal += (outputLayer[i] - 1.0) * (outputLayer[i] - 1.0);
-                }
-                else
-                {
-                    costVal += outputLayer[i] * (double) outputLayer[i];
-                }
+                costVal += ((*this)[i] - 1.0) * ((*this)[i] - 1.0);
             }
-            break;
+            else
+            {
+                costVal += (*this)[i] * (double) (*this)[i];
+            }
         }
-        costValValid = true;
+        break;
     }
     return costVal;
 }
 
-Sample &Sample::operator=(const Sample &sample_)
+TnLayer::TnLayer(int row_, int colum_, ActiveFuncPtr actFunc) : activeFunc(actFunc)
 {
-    if (this == &sample_)
+    static bool initial = false;
+    if (!initial)
     {
-        return *this;
+        srand((unsigned int) time(0));
+        initial = true;
     }
-    m_data = sample_.m_data;
-    m_activeLayers = sample_.m_activeLayers;
-    m_realValue = sample_.m_realValue;
-    return *this;
+    bias.resize(row_);
+    for (int r = 0; r < row_; r++)
+    {
+        vector<double> row;
+        row.resize(colum_);
+        for (int c = 0; c < colum_; c++)
+        {
+            row[c] = rand() * 2.0 / RAND_MAX - 1.0;
+        }
+        matrix.emplace_back(row);
+        bias[r] = rand() * 2.0 / RAND_MAX - 1.0;
+    }
 }
 
-Sample::~Sample()
+TnLayer::TnLayer(const TnLayer &neural) : activeFunc(neural.activeFunc)
 {
+    bias.resize(neural.bias.size(), 0);
+    for (int r = 0; r < neural.row(); r++)
+    {
+        vector<double> row;
+        row.resize(neural.col(), 0);
+        matrix.emplace_back(row);
+    }
+}
+int TnLayer::row() const
+{
+    return (int) matrix.size();
+}
+int TnLayer::col() const
+{
+    if (matrix.empty())
+        return 0;
+    return (int) matrix.front().size();
+}
+
+void TnLayer::Active(TnVector &vec) const
+{
+    if(activeFunc)
+        activeFunc(vec);
 }

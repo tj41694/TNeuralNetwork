@@ -9,7 +9,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_executable(NumDistinguish
     NumDistinguish/main.cpp
     NumDistinguish/NumDistinguish.cpp
-    NumDistinguish/NeuralMatrix.cpp
     NumDistinguish/Sample.cpp
     NumDistinguish/Shuffle.cpp
     NumDistinguish/sqlite3/sqlite3.c

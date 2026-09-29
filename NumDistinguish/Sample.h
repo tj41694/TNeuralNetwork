@@ -3,7 +3,6 @@
 #include <vector>
 
 using namespace std;
-class NeuralMatrix;
 
 enum class ActiveFunc
 {
@@ -29,25 +28,45 @@ struct SampleLayer
     ActiveFunc activeFunc;
 };
 
-class Sample
+class TnVector;
+
+using ActiveFuncPtr = void (*)(TnVector &vec);
+
+class TnLayer
+{
+  public:
+    TnLayer(int row_, int colum_, ActiveFuncPtr actFunc);
+    TnLayer(const TnLayer &neural);
+    int row() const;
+    int col() const;
+    void Active(TnVector & vec) const;
+
+  public:
+    vector<vector<double>> matrix;
+    vector<double> bias;
+
+  private:
+    ActiveFuncPtr activeFunc = nullptr;
+};
+
+class TnVector : public vector<double>
+{
+  public:
+    TnVector operator*(const TnLayer &matrix) const;
+};
+
+class Sample : public TnVector
 {
   public:
     int m_realValue;
-    vector<double> m_data;
     vector<SampleLayer> m_activeLayers;
 
   public:
     Sample();
     Sample(const Sample &);
     Sample(int num_, const float *data, unsigned int floatCount);
-    ~Sample();
+    Sample operator*(const TnLayer &matrix) const;
 
-    void MatrixMultiply(const NeuralMatrix &layer, ActiveFunc func);
+    void MatrixMultiply(const TnLayer &layer, ActiveFunc func);
     double GetCostValue(CostFunc func);
-
-    Sample &operator=(const Sample &ly);
-
-  private:
-    double costVal = 0;
-    bool costValValid = false;
 };

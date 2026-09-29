@@ -11,16 +11,22 @@ static bool GetData(vector<Sample *> &datas, int type)
         printf("%s", sqlite3_errmsg(db));
         return false;
     }
-    sqlite3_stmt *pStmt;
+    sqlite3_stmt *pStmt = nullptr;
+    int prepareResult = SQLITE_ERROR;
     switch (type)
     {
     case 1:
-        sqlite3_prepare(db, "select * from te_data", -1, &pStmt, 0);
+        prepareResult = sqlite3_prepare(db, "select * from te_data", -1, &pStmt, 0);
         break;
     case 2:
     default:
-        sqlite3_prepare(db, "select * from tr_data", -1, &pStmt, 0);
+        prepareResult = sqlite3_prepare(db, "select * from tr_data", -1, &pStmt, 0);
         break;
+    }
+    if (prepareResult != SQLITE_OK || pStmt == nullptr)
+    {
+        sqlite3_close(db);
+        return false;
     }
     while (sqlite3_step(pStmt) == SQLITE_ROW)
     {
@@ -40,24 +46,24 @@ static bool GetData(vector<Sample *> &datas, int type)
 
 int main()
 {
+    vector<Sample *> datas, testDatas;
+    if (!GetData(datas, 2) || !GetData(testDatas, 1))
+        return 1;
+
     DigitalDistinguish model;
-    model.PushLayer(24, 784);
-    model.PushLayer(16, 24);
-    model.PushLayer(10, 16);
-    vector<Sample *> datas;
-    if (GetData(datas, 2))
-    {
-        model.StartTraining(datas, 100);
-    }
-    vector<Sample *> datas1;
-    if (GetData(datas1, 1))
-    {
-        model.Test(datas1);
-    }
-    for (size_t i = 0; i < datas.size(); i++)
-    {
-        delete datas[i];
-    }
-    printf("done..");
+    model.PushLayer(24, 784, Linear);
+    model.PushLayer(16, 24, Linear);
+    model.PushLayer(10, 16, SoftMax);
+
+    model.Training(datas, 100);
+
+    model.Test(testDatas);
+
+    for (auto data : datas)
+        delete data;
+    for (auto data : testDatas)
+        delete data;
+
+    printf("done..\n");
     return 0;
 }

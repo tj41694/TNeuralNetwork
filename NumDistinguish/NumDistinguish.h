@@ -1,7 +1,11 @@
+#include "Sample.h"
 #include <vector>
 using namespace std;
-class NeuralMatrix;
-class Sample;
+
+void Linear(TnVector &vec);
+void Sigmoid(TnVector &vec);
+void ReLU(TnVector &vec);
+void SoftMax(TnVector &vec);
 
 class DigitalDistinguish
 {
@@ -9,15 +13,17 @@ class DigitalDistinguish
     DigitalDistinguish();
     ~DigitalDistinguish();
 
-    void PushLayer(unsigned int row, unsigned int colum);
-    void StartTraining(const vector<Sample *> &data, int sampleSize = 100);
-    void ForwardPass(Sample &sample);
-    void InverseTrans(Sample &sample);
+    void PushLayer(unsigned int row, unsigned int colum, ActiveFuncPtr activeFunc);
+    void Training(const vector<Sample *> &data, int sampleSize = 100);
     int Distinguish(Sample &sample);
     void Test(const vector<Sample *> &data);
-    void BackwardsPass(const vector<Sample *> &samples, const vector<size_t> &indeces,
-                       double lRate, double averageCostVal);
 
   private:
-    vector<NeuralMatrix *> layers;
+    TnVector ForwardPass(Sample &sample);
+    void InverseTrans(Sample &sample);
+    void BackwardsPass(const vector<Sample *> &samples, const vector<size_t> &indeces, double lRate,
+                       double averageCostVal);
+
+  private:
+    vector<TnLayer *> layers;
 };
