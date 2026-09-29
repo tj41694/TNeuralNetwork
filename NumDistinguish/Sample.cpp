@@ -49,7 +49,7 @@ void Sample::MatrixMultiply(const NeuralMatrix &neuralMat, ActiveFunc func)
         {
             val += (*lastActiveLayer)[c] * neuralMat.matrix[r][c];
         }
-        layer.net[r] = val + neuralMat.bias;
+        layer.net[r] = val + neuralMat.bias[r];
     }
     switch (layer.activeFunc)
     {

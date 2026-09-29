@@ -9,7 +9,7 @@ class DigitalDistinguish
     DigitalDistinguish();
     ~DigitalDistinguish();
 
-    void PushLayer(unsigned int row, unsigned int colum, float bias);
+    void PushLayer(unsigned int row, unsigned int colum);
     void StartTraining(const vector<Sample *> &data, int sampleSize = 100);
     void ForwardPass(Sample &sample);
     void InverseTrans(Sample &sample);

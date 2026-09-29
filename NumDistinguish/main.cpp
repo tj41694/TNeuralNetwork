@@ -41,9 +41,9 @@ static bool GetData(vector<Sample *> &datas, int type)
 int main()
 {
     DigitalDistinguish model;
-    model.PushLayer(24, 784, 10);
-    model.PushLayer(16, 24, 5);
-    model.PushLayer(10, 16, 1);
+    model.PushLayer(24, 784);
+    model.PushLayer(16, 24);
+    model.PushLayer(10, 16);
     vector<Sample *> datas;
     if (GetData(datas, 2))
     {

@@ -4,9 +4,9 @@
 #include "Shuffle.h"
 
 
-void DigitalDistinguish::PushLayer(unsigned int row, unsigned int colum, float bias = 0)
+void DigitalDistinguish::PushLayer(unsigned int row, unsigned int colum)
 {
-    NeuralMatrix *layer = new NeuralMatrix(row, colum, bias);
+    NeuralMatrix *layer = new NeuralMatrix(row, colum);
     layers.emplace_back(layer);
 }
 
@@ -28,7 +28,7 @@ void DigitalDistinguish::StartTraining(const vector<Sample *> &samples, int samp
             sampleTotalVal += cost;
         }
         averageCost = sampleTotalVal / sampleSize; // 平均值
-        BackwardsPass(samples, randomIndeces, 0.15f, averageCost);
+        BackwardsPass(samples, randomIndeces, 0.01f, averageCost);
         printf("Sample Count: %d \t Cost Value: %.5f \n", count, averageCost);
         count += sampleSize;
     }
@@ -101,7 +101,7 @@ void DigitalDistinguish::BackwardsPass(const vector<Sample *> &samples,
     vector<NeuralMatrix *> lyGradient;
     for (size_t i = 0; i < layers.size(); i++)
     {
-        NeuralMatrix *gradient = new NeuralMatrix(*layers[i], true);
+        NeuralMatrix *gradient = new NeuralMatrix(*layers[i]);
         lyGradient.push_back(gradient);
     }
     for (size_t index : indeces)
@@ -119,7 +119,7 @@ void DigitalDistinguish::BackwardsPass(const vector<Sample *> &samples,
                     case ActiveFunc::ReLU:
                         if (sample.m_activeLayers[i].net[r] > 0)
                         {
-                            lyGradient[i]->bias += sample.m_activeLayers[i].out[r];
+                            lyGradient[i]->bias[r] += sample.m_activeLayers[i].out[r];
                             for (size_t c = 0; c < lyGradient[i]->matrix[r].size(); c++)
                             {
                                 lyGradient[i]->matrix[r][c] =
@@ -133,7 +133,7 @@ void DigitalDistinguish::BackwardsPass(const vector<Sample *> &samples,
                             lyGradient[i]->matrix[r][c] =
                                 sample.m_activeLayers[i].out[r] * sample.m_data[c];
                         }
-                        lyGradient[i]->bias += sample.m_activeLayers[i].out[r];
+                        lyGradient[i]->bias[r] += sample.m_activeLayers[i].out[r];
                         break;
                     case ActiveFunc::Linear:
                         for (size_t c = 0; c < lyGradient[i]->matrix[r].size(); c++)
@@ -141,7 +141,7 @@ void DigitalDistinguish::BackwardsPass(const vector<Sample *> &samples,
                             lyGradient[i]->matrix[r][c] =
                                 sample.m_activeLayers[i].out[r] * sample.m_data[c];
                         }
-                        lyGradient[i]->bias += sample.m_activeLayers[i].out[r];
+                        lyGradient[i]->bias[r] += sample.m_activeLayers[i].out[r];
                         break;
                     default:
                         break;
@@ -162,7 +162,7 @@ void DigitalDistinguish::BackwardsPass(const vector<Sample *> &samples,
                                 lyGradient[i]->matrix[r][c] = sample.m_activeLayers[i].out[r] *
                                                               sample.m_activeLayers[i - 1].out[c];
                             }
-                            lyGradient[i]->bias += sample.m_activeLayers[i].out[r];
+                            lyGradient[i]->bias[r] += sample.m_activeLayers[i].out[r];
                         }
                         break;
                     case ActiveFunc::SoftMax:
@@ -171,7 +171,7 @@ void DigitalDistinguish::BackwardsPass(const vector<Sample *> &samples,
                             lyGradient[i]->matrix[r][c] =
                                 sample.m_activeLayers[i].out[r] * sample.m_activeLayers[i - 1].out[c];
                         }
-                        lyGradient[i]->bias += sample.m_activeLayers[i].out[r];
+                        lyGradient[i]->bias[r] += sample.m_activeLayers[i].out[r];
                         break;
                     case ActiveFunc::Linear:
                         for (size_t c = 0; c < lyGradient[i]->matrix[r].size(); c++)
@@ -179,7 +179,7 @@ void DigitalDistinguish::BackwardsPass(const vector<Sample *> &samples,
                             lyGradient[i]->matrix[r][c] =
                                 sample.m_activeLayers[i].out[r] * sample.m_activeLayers[i - 1].out[c];
                         }
-                        lyGradient[i]->bias += sample.m_activeLayers[i].out[r];
+                        lyGradient[i]->bias[r] += sample.m_activeLayers[i].out[r];
                     default:
                         break;
                     }
@@ -190,14 +190,14 @@ void DigitalDistinguish::BackwardsPass(const vector<Sample *> &samples,
     }
     for (size_t i = 0; i < layers.size(); i++)
     {
-        lyGradient[i]->bias /= indeces.size();
-        (layers[i])->bias -= lRate * lyGradient[i]->bias;
         for (size_t r = 0; r < lyGradient[i]->matrix.size(); r++)
         {
+            lyGradient[i]->bias[r] /= indeces.size();
+            (layers[i])->bias[r] -= lRate * lyGradient[i]->bias[r] * averageCostVal;
             for (size_t c = 0; c < lyGradient[i]->matrix[r].size(); c++)
             {
                 lyGradient[i]->matrix[r][c] /= indeces.size();
-                (layers[i])->matrix[r][c] -= lRate * lyGradient[i]->matrix[r][c];
+                (layers[i])->matrix[r][c] -= lRate * lyGradient[i]->matrix[r][c] * averageCostVal;
             }
         }
         delete lyGradient[i];
