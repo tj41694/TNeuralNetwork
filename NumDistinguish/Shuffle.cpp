@@ -18,15 +18,15 @@ Shuffle::Shuffle(size_t size_)
     shuffle(randomIndeces.begin(), randomIndeces.end(), default_random_engine(seed));
 }
 
-void Shuffle::GetShuffledData(int count, vector<size_t>& shuffleIndeces)
+void Shuffle::GetShuffledData(const vector<Sample *> &samples, int count, vector<Sample *> &shuffledData)
 {
-    shuffleIndeces.clear();
-    shuffleIndeces.resize(count);
+    shuffledData.clear();
+    shuffledData.resize(count);
     auto size = randomIndeces.size();
 
     for (int i = 0; i < count; i++)
     {
-        shuffleIndeces[i] = randomIndeces[(curIndex++) % size];
+        shuffledData[i] = samples[randomIndeces[(curIndex++) % size]];
     }
     if (curIndex + count > size)
     {

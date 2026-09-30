@@ -49,14 +49,13 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, int sampleSiz
     int times = 0;
     while (times++ < 500)
     {
-        vector<size_t> batchs;
-        shuff.GetShuffledData(sampleSize, batchs);
+        vector<Sample *> batchs;
+        shuff.GetShuffledData(samples, sampleSize, batchs);
         double sampleTotalVal = 0;
-        for (size_t i = 0; i < batchs.size(); i++)
+        for (Sample *sample : batchs)
         {
-            Sample &sample = *samples[batchs[i]];
-            ForwardPass(sample); //TODO delete
-            Sample output = sample;
+            ForwardPass(*sample); //TODO delete
+            Sample output = *sample;
             for (const auto &layer : m_layers)
             {
                 output = output * (*layer);
@@ -66,7 +65,7 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, int sampleSiz
             sampleTotalVal += cost;
         }
         averageCost = sampleTotalVal / sampleSize; // 平均值
-        BackwardsPass(samples, batchs, 0.005f, averageCost);
+        BackwardsPass(batchs, 0.005f, averageCost);
         printf("Sample Count: %d \t Cost Value: %.5f \n", count, averageCost);
         count += sampleSize;
     }
@@ -139,8 +138,7 @@ void DigitalDistinguish::Test(const vector<Sample *> &data)
     printf("accuracy: %.3f%%\n", corectRate);
 }
 
-void DigitalDistinguish::BackwardsPass(const vector<Sample *> &samples,
-                                       const vector<size_t> &batch, double lRate,
+void DigitalDistinguish::BackwardsPass(const vector<Sample *> &batch, double lRate,
                                        double averageCostVal)
 {
     vector<TnLayer *> lyGradient;
@@ -149,9 +147,9 @@ void DigitalDistinguish::BackwardsPass(const vector<Sample *> &samples,
         TnLayer *gradient = new TnLayer(*m_layers[i]);
         lyGradient.push_back(gradient);
     }
-    for (size_t index : batch)
+    for (Sample *samplePtr : batch)
     {
-        Sample &sample = *samples[index];
+        Sample &sample = *samplePtr;
         InverseTrans(sample); // 反向传播：变换梯度
         for (size_t i = 0; i < sample.m_activeLayers.size(); i++)
         {

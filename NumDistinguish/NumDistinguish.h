@@ -21,8 +21,7 @@ class DigitalDistinguish
   private:
     TnVector ForwardPass(Sample &sample);
     void InverseTrans(Sample &sample);
-    void BackwardsPass(const vector<Sample *> &samples, const vector<size_t> &indeces, double lRate,
-                       double averageCostVal);
+    void BackwardsPass(const vector<Sample *> &batch, double lRate, double averageCostVal);
 
   private:
     vector<TnLayer *> m_layers;
