@@ -57,7 +57,7 @@ int main()
 
     model.Training(datas, 100);
 
-    model.Test(testDatas);
+    model.Validate(testDatas);
 
     for (auto data : datas)
         delete data;

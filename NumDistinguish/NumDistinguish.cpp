@@ -65,7 +65,20 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, int sampleSiz
             sampleTotalVal += cost;
         }
         averageCost = sampleTotalVal / sampleSize; // 平均值
-        BackwardsPass(batchs, 0.005f, averageCost);
+        vector<TnLayer *> gradients;
+        for (const auto &layer : m_layers)
+        {
+            gradients.emplace_back(new TnLayer(*layer));
+        }
+        for (Sample *sample : batchs)
+        {
+            Backward(*sample, gradients);
+        }
+        UpdateWeights(gradients, batchs.size(), 0.005f * averageCost);
+        for (auto gradient : gradients)
+        {
+            delete gradient;
+        }
         printf("Sample Count: %d \t Cost Value: %.5f \n", count, averageCost);
         count += sampleSize;
     }
@@ -88,7 +101,7 @@ TnVector DigitalDistinguish::ForwardPass(Sample &sample)
     return result;
 }
 
-void DigitalDistinguish::InverseTrans(Sample &sample)
+void DigitalDistinguish::InverseTrans(Sample &sample) const
 {
     vector<SampleLayer> &acLayers = sample.m_activeLayers;
     acLayers[acLayers.size() - 1].out[sample.m_realValue] -= 1; // 变换梯度
@@ -122,7 +135,7 @@ int DigitalDistinguish::Distinguish(Sample &sample)
     return result;
 }
 
-void DigitalDistinguish::Test(const vector<Sample *> &data)
+void DigitalDistinguish::Validate(const vector<Sample *> &data)
 {
     int corectCount = 0;
     for (auto s : data)
@@ -138,112 +151,105 @@ void DigitalDistinguish::Test(const vector<Sample *> &data)
     printf("accuracy: %.3f%%\n", corectRate);
 }
 
-void DigitalDistinguish::BackwardsPass(const vector<Sample *> &batch, double lRate,
-                                       double averageCostVal)
+void DigitalDistinguish::Backward(Sample &sample, vector<TnLayer *> &gradients)
 {
-    vector<TnLayer *> lyGradient;
-    for (size_t i = 0; i < m_layers.size(); i++)
+    InverseTrans(sample); // 反向传播：变换梯度
+    for (size_t i = 0; i < sample.m_activeLayers.size(); i++)
     {
-        TnLayer *gradient = new TnLayer(*m_layers[i]);
-        lyGradient.push_back(gradient);
-    }
-    for (Sample *samplePtr : batch)
-    {
-        Sample &sample = *samplePtr;
-        InverseTrans(sample); // 反向传播：变换梯度
-        for (size_t i = 0; i < sample.m_activeLayers.size(); i++)
-        {
-            if (i == 0)
-            { // 输入层
-                for (size_t r = 0; r < lyGradient[i]->matrix.size(); r++)
-                {
-                    switch (sample.m_activeLayers[i].activeFunc)
-                    {
-                    case ActiveFunc::ReLU:
-                        if (sample.m_activeLayers[i].net[r] > 0)
-                        {
-                            lyGradient[i]->bias[r] += sample.m_activeLayers[i].out[r];
-                            for (size_t c = 0; c < lyGradient[i]->matrix[r].size(); c++)
-                            {
-                                lyGradient[i]->matrix[r][c] +=
-                                    sample.m_activeLayers[i].out[r] * sample[c];
-                            }
-                        }
-                        break;
-                    case ActiveFunc::SoftMax:
-                        for (size_t c = 0; c < lyGradient[i]->matrix[r].size(); c++)
-                        {
-                            lyGradient[i]->matrix[r][c] +=
-                                sample.m_activeLayers[i].out[r] * sample[c];
-                        }
-                        lyGradient[i]->bias[r] += sample.m_activeLayers[i].out[r];
-                        break;
-                    case ActiveFunc::Linear:
-                        for (size_t c = 0; c < lyGradient[i]->matrix[r].size(); c++)
-                        {
-                            lyGradient[i]->matrix[r][c] +=
-                                sample.m_activeLayers[i].out[r] * sample[c];
-                        }
-                        lyGradient[i]->bias[r] += sample.m_activeLayers[i].out[r];
-                        break;
-                    default:
-                        break;
-                    }
-                }
-            }
-            else
+        if (i == 0)
+        { // 输入层
+            for (size_t r = 0; r < gradients[i]->matrix.size(); r++)
             {
-                for (size_t r = 0; r < lyGradient[i]->matrix.size(); r++)
+                switch (sample.m_activeLayers[i].activeFunc)
                 {
-                    switch (sample.m_activeLayers[i].activeFunc)
+                case ActiveFunc::ReLU:
+                    if (sample.m_activeLayers[i].net[r] > 0)
                     {
-                    case ActiveFunc::ReLU:
-                        if (sample.m_activeLayers[i].net[r] > 0)
+                        gradients[i]->bias[r] += sample.m_activeLayers[i].out[r];
+                        for (size_t c = 0; c < gradients[i]->matrix[r].size(); c++)
                         {
-                            for (size_t c = 0; c < lyGradient[i]->matrix[r].size(); c++)
-                            {
-                                lyGradient[i]->matrix[r][c] += sample.m_activeLayers[i].out[r] *
-                                                               sample.m_activeLayers[i - 1].out[c];
-                            }
-                            lyGradient[i]->bias[r] += sample.m_activeLayers[i].out[r];
+                            gradients[i]->matrix[r][c] +=
+                                sample.m_activeLayers[i].out[r] * sample[c];
                         }
-                        break;
-                    case ActiveFunc::SoftMax:
-                        for (size_t c = 0; c < lyGradient[i]->matrix[r].size(); c++)
-                        {
-                            lyGradient[i]->matrix[r][c] +=
-                                sample.m_activeLayers[i].out[r] * sample.m_activeLayers[i - 1].out[c];
-                        }
-                        lyGradient[i]->bias[r] += sample.m_activeLayers[i].out[r];
-                        break;
-                    case ActiveFunc::Linear:
-                        for (size_t c = 0; c < lyGradient[i]->matrix[r].size(); c++)
-                        {
-                            lyGradient[i]->matrix[r][c] +=
-                                sample.m_activeLayers[i].out[r] * sample.m_activeLayers[i - 1].out[c];
-                        }
-                        lyGradient[i]->bias[r] += sample.m_activeLayers[i].out[r];
-                    default:
-                        break;
                     }
+                    break;
+                case ActiveFunc::SoftMax:
+                    for (size_t c = 0; c < gradients[i]->matrix[r].size(); c++)
+                    {
+                        gradients[i]->matrix[r][c] +=
+                            sample.m_activeLayers[i].out[r] * sample[c];
+                    }
+                    gradients[i]->bias[r] += sample.m_activeLayers[i].out[r];
+                    break;
+                case ActiveFunc::Linear:
+                    for (size_t c = 0; c < gradients[i]->matrix[r].size(); c++)
+                    {
+                        gradients[i]->matrix[r][c] +=
+                            sample.m_activeLayers[i].out[r] * sample[c];
+                    }
+                    gradients[i]->bias[r] += sample.m_activeLayers[i].out[r];
+                    break;
+                default:
+                    break;
                 }
             }
         }
-        sample.m_activeLayers.clear();
-    }
-    for (size_t i = 0; i < m_layers.size(); i++)
-    {
-        for (size_t r = 0; r < lyGradient[i]->matrix.size(); r++)
+        else
         {
-            lyGradient[i]->bias[r] /= batch.size();
-            (m_layers[i])->bias[r] -= lRate * lyGradient[i]->bias[r] * averageCostVal;
-            for (size_t c = 0; c < lyGradient[i]->matrix[r].size(); c++)
+            for (size_t r = 0; r < gradients[i]->matrix.size(); r++)
             {
-                lyGradient[i]->matrix[r][c] /= batch.size();
-                (m_layers[i])->matrix[r][c] -= lRate * lyGradient[i]->matrix[r][c] * averageCostVal;
+                switch (sample.m_activeLayers[i].activeFunc)
+                {
+                case ActiveFunc::ReLU:
+                    if (sample.m_activeLayers[i].net[r] > 0)
+                    {
+                        for (size_t c = 0; c < gradients[i]->matrix[r].size(); c++)
+                        {
+                            gradients[i]->matrix[r][c] += sample.m_activeLayers[i].out[r] *
+                                                           sample.m_activeLayers[i - 1].out[c];
+                        }
+                        gradients[i]->bias[r] += sample.m_activeLayers[i].out[r];
+                    }
+                    break;
+                case ActiveFunc::SoftMax:
+                    for (size_t c = 0; c < gradients[i]->matrix[r].size(); c++)
+                    {
+                        gradients[i]->matrix[r][c] +=
+                            sample.m_activeLayers[i].out[r] * sample.m_activeLayers[i - 1].out[c];
+                    }
+                    gradients[i]->bias[r] += sample.m_activeLayers[i].out[r];
+                    break;
+                case ActiveFunc::Linear:
+                    for (size_t c = 0; c < gradients[i]->matrix[r].size(); c++)
+                    {
+                        gradients[i]->matrix[r][c] +=
+                            sample.m_activeLayers[i].out[r] * sample.m_activeLayers[i - 1].out[c];
+                    }
+                    gradients[i]->bias[r] += sample.m_activeLayers[i].out[r];
+                default:
+                    break;
+                }
             }
         }
-        delete lyGradient[i];
+    }
+    sample.m_activeLayers.clear();
+}
+
+void DigitalDistinguish::UpdateWeights(const vector<TnLayer *> &gradients, size_t batchSize,
+                                       double stepRate)
+{
+    for (size_t i = 0; i < m_layers.size(); i++)
+    {
+        for (size_t r = 0; r < gradients[i]->matrix.size(); r++)
+        {
+            gradients[i]->bias[r] /= batchSize;
+            m_layers[i]->bias[r] -= stepRate * gradients[i]->bias[r];
+            for (size_t c = 0; c < gradients[i]->matrix[r].size(); c++)
+            {
+                gradients[i]->matrix[r][c] /= batchSize;
+                m_layers[i]->matrix[r][c] -= stepRate * gradients[i]->matrix[r][c];
+            }
+        }
     }
 }
 
