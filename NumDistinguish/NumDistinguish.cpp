@@ -57,7 +57,10 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, int batchSize
     Shuffle shuff(samples.size());
     int count = batchSize;
     int times = 0;
-    while (times++ < 15000)
+    vector<double> costs;
+    int eqCt = 0;
+    double lRate = 0.003;
+    while (times++ < 25000)
     {
         vector<Sample *> batchs;
         shuff.GetShuffledData(samples, batchSize, batchs);
@@ -73,10 +76,35 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, int batchSize
             sampleTotalVal += input.GetCostValue(CostFunc::CrossEntropy, output);
             Backward(input, output, gradients);
         }
-        UpdateWeights(gradients, batchs.size(), 0.001f);
+        costs.push_back(sampleTotalVal);
+        if (costs.size() > 5)
+        {   
+            double averCost = 0;
+            int ct = 0;
+            for(int i = costs.size() - 2; i < costs.size(); ++i)
+            {
+                ++ct;
+                averCost += costs[i];
+            }
+            averCost /= ct;
+            if (costs.back() < averCost * 1.1)
+            {
+                // lRate *= 0.8;
+                if (costs.back() > averCost * 0.9)
+                {
+                    eqCt++;
+                }
+            }
+        }
+        if(eqCt > 500)
+        {
+            eqCt = 0;
+            lRate *= 0.8;
+        }
+        UpdateWeights(gradients, batchs.size(), lRate);
         for (auto gradient : gradients)
             delete gradient;
-        printf("Sample Count: %d \t Cost Value: %.5f \n", count, sampleTotalVal / batchSize);
+        printf("Sample Count: %d \t lRate: %.10f\tCost Value: %.5f \n", count, lRate, sampleTotalVal / batchSize);
         count += batchSize;
     }
 }
