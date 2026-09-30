@@ -51,13 +51,13 @@ int main()
         return 1;
 
     DigitalDistinguish model;
-    model.PushLayer(24, 784, ReLU);
-    model.PushLayer(16, 24, ReLU);
-    model.PushLayer(10, 16, SoftMax);
+    model.PushLayer(24, 784, ReLU, DerivReLU);
+    model.PushLayer(16, 24, ReLU, DerivReLU);
+    model.PushLayer(10, 16, SoftMax, DerivSoftMax);
 
     model.Training(datas, 100);
 
-    model.Validate(testDatas);
+    model.Validate(datas);
 
     for (auto data : datas)
         delete data;
