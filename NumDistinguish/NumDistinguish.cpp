@@ -38,7 +38,7 @@ void SoftMax(TnVector &vec)
 void DigitalDistinguish::PushLayer(unsigned int row, unsigned int colum, ActiveFuncPtr activeFunc)
 {
     TnLayer *layer = new TnLayer(row, colum, activeFunc);
-    layers.emplace_back(layer);
+    m_layers.emplace_back(layer);
 }
 
 void DigitalDistinguish::Training(const vector<Sample *> &samples, int sampleSize)
@@ -47,7 +47,7 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, int sampleSiz
     double averageCost = 100000.0;
     int count = sampleSize;
     int times = 0;
-    while (times++ < 200)
+    while (times++ < 500)
     {
         vector<size_t> batchs;
         shuff.GetShuffledData(sampleSize, batchs);
@@ -57,16 +57,16 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, int sampleSiz
             Sample &sample = *samples[batchs[i]];
             ForwardPass(sample); //TODO delete
             Sample output = sample;
-            for (const auto &layer : layers)
+            for (const auto &layer : m_layers)
             {
                 output = output * (*layer);
                 layer->Active(output);
             }
-            double cost = output.GetCostValue(CostFunc::MeanSquare);
+            double cost = output.GetCostValue(CostFunc::CrossEntropy);
             sampleTotalVal += cost;
         }
         averageCost = sampleTotalVal / sampleSize; // 平均值
-        BackwardsPass(samples, batchs, 0.15f, averageCost);
+        BackwardsPass(samples, batchs, 0.005f, averageCost);
         printf("Sample Count: %d \t Cost Value: %.5f \n", count, averageCost);
         count += sampleSize;
     }
@@ -80,12 +80,12 @@ TnVector DigitalDistinguish::ForwardPass(Sample &sample)
     //     result = result * *layer;
     //     layer->Active(result);
     // }
-    size_t layerCount = layers.size() - 1;
+    size_t layerCount = m_layers.size() - 1;
     for (size_t i = 0; i < layerCount; i++)
     {
-        sample.MatrixMultiply(*layers[i], ActiveFunc::Linear);
+        sample.MatrixMultiply(*m_layers[i], ActiveFunc::Linear);
     }
-    sample.MatrixMultiply(*layers[layerCount], ActiveFunc::SoftMax);
+    sample.MatrixMultiply(*m_layers[layerCount], ActiveFunc::SoftMax);
     return result;
 }
 
@@ -98,7 +98,7 @@ void DigitalDistinguish::InverseTrans(Sample &sample)
         for (size_t r = 0; r < acLayers[i].out.size(); r++)
         {
             acLayers[i].out[r] = 0;
-            const TnLayer &weightLayer = *layers[i + 1LL];
+            const TnLayer &weightLayer = *m_layers[i + 1LL];
             for (int wr = 0; wr < weightLayer.row(); wr++)
             {
                 acLayers[i].out[r] += weightLayer.matrix[wr][r] * acLayers[i + 1LL].out[wr];
@@ -144,9 +144,9 @@ void DigitalDistinguish::BackwardsPass(const vector<Sample *> &samples,
                                        double averageCostVal)
 {
     vector<TnLayer *> lyGradient;
-    for (size_t i = 0; i < layers.size(); i++)
+    for (size_t i = 0; i < m_layers.size(); i++)
     {
-        TnLayer *gradient = new TnLayer(*layers[i]);
+        TnLayer *gradient = new TnLayer(*m_layers[i]);
         lyGradient.push_back(gradient);
     }
     for (size_t index : batch)
@@ -233,16 +233,16 @@ void DigitalDistinguish::BackwardsPass(const vector<Sample *> &samples,
         }
         sample.m_activeLayers.clear();
     }
-    for (size_t i = 0; i < layers.size(); i++)
+    for (size_t i = 0; i < m_layers.size(); i++)
     {
         for (size_t r = 0; r < lyGradient[i]->matrix.size(); r++)
         {
             lyGradient[i]->bias[r] /= batch.size();
-            (layers[i])->bias[r] -= lRate * lyGradient[i]->bias[r] * averageCostVal;
+            (m_layers[i])->bias[r] -= lRate * lyGradient[i]->bias[r] * averageCostVal;
             for (size_t c = 0; c < lyGradient[i]->matrix[r].size(); c++)
             {
                 lyGradient[i]->matrix[r][c] /= batch.size();
-                (layers[i])->matrix[r][c] -= lRate * lyGradient[i]->matrix[r][c] * averageCostVal;
+                (m_layers[i])->matrix[r][c] -= lRate * lyGradient[i]->matrix[r][c] * averageCostVal;
             }
         }
         delete lyGradient[i];
@@ -255,7 +255,7 @@ DigitalDistinguish::DigitalDistinguish()
 
 DigitalDistinguish::~DigitalDistinguish()
 {
-    for (auto layer : layers)
+    for (auto layer : m_layers)
     {
         delete layer;
     }

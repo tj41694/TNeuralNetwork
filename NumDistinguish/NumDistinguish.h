@@ -25,5 +25,5 @@ class DigitalDistinguish
                        double averageCostVal);
 
   private:
-    vector<TnLayer *> layers;
+    vector<TnLayer *> m_layers;
 };
