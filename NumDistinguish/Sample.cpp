@@ -1,5 +1,6 @@
 #include "Sample.h"
 #include <cassert>
+#include <cstdio>
 #include <cstdlib> // Header file needed to use srand and rand
 #include <ctime>   // Header file needed to use time
 
@@ -40,6 +41,73 @@ double Sample::GetCostValue(CostFunc func, const TnVector & output) const
         break;
     }
     return costVal;
+}
+
+bool Sample::SaveAsBmp(const char *path) const
+{
+    int side = (int) sqrt((double) size());
+    if (side <= 0 || side * side != (int) size())
+        return false;
+
+    int rowBytes = side * 3;
+    int padding = (4 - (rowBytes % 4)) % 4;
+    int pixelDataSize = (rowBytes + padding) * side;
+    int fileSize = 54 + pixelDataSize;
+
+#if defined(_MSC_VER)
+    FILE *fp = nullptr;
+    if (fopen_s(&fp, path, "wb") != 0)
+        return false;
+#else
+    FILE *fp = fopen(path, "wb");
+    if (fp == nullptr)
+        return false;
+#endif
+
+    unsigned char header[54] = {0};
+    header[0] = 'B';
+    header[1] = 'M';
+    header[2] = (unsigned char) (fileSize);
+    header[3] = (unsigned char) (fileSize >> 8);
+    header[4] = (unsigned char) (fileSize >> 16);
+    header[5] = (unsigned char) (fileSize >> 24);
+    header[10] = 54;
+    header[14] = 40;
+    header[18] = (unsigned char) (side);
+    header[19] = (unsigned char) (side >> 8);
+    header[20] = (unsigned char) (side >> 16);
+    header[21] = (unsigned char) (side >> 24);
+    header[22] = (unsigned char) (side);
+    header[23] = (unsigned char) (side >> 8);
+    header[24] = (unsigned char) (side >> 16);
+    header[25] = (unsigned char) (side >> 24);
+    header[26] = 1;
+    header[28] = 24;
+    header[34] = (unsigned char) (pixelDataSize);
+    header[35] = (unsigned char) (pixelDataSize >> 8);
+    header[36] = (unsigned char) (pixelDataSize >> 16);
+    header[37] = (unsigned char) (pixelDataSize >> 24);
+    fwrite(header, 1, sizeof(header), fp);
+
+    unsigned char pad[3] = {0, 0, 0};
+    for (int y = side - 1; y >= 0; y--)
+    {
+        for (int x = 0; x < side; x++)
+        {
+            double v = (*this)[y * side + x];
+            if (v < 0.0)
+                v = 0.0;
+            if (v > 1.0)
+                v = 1.0;
+            unsigned char pixel = (unsigned char) (v * 255.0 + 0.5);
+            unsigned char bgr[3] = {pixel, pixel, pixel};
+            fwrite(bgr, 1, sizeof(bgr), fp);
+        }
+        if (padding > 0)
+            fwrite(pad, 1, padding, fp);
+    }
+    fclose(fp);
+    return true;
 }
 
 TnLayer::TnLayer(int row_, int colum_, ActiveFuncPtr actFunc, DerivFuncPtr derivFunc_)

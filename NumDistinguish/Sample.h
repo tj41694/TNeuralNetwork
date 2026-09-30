@@ -52,4 +52,5 @@ class Sample : public TnVector
     Sample(int num_, const float *data, unsigned int floatCount);
 
     double GetCostValue(CostFunc func, const TnVector & output) const;
+    bool SaveAsBmp(const char *path) const;
 };

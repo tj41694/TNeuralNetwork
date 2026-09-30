@@ -1,7 +1,9 @@
 #include "NumDistinguish.h"
 #include "Sample.h"
 #include "sqlite3/sqlite3.h"
+#include <filesystem>
 #include <stdio.h>
+#include <string>
 
 static bool GetData(vector<Sample *> &datas, int type)
 {
@@ -28,15 +30,22 @@ static bool GetData(vector<Sample *> &datas, int type)
         sqlite3_close(db);
         return false;
     }
+    std::filesystem::create_directories("temp");
+    int index = 0;
     while (sqlite3_step(pStmt) == SQLITE_ROW)
     {
         int ulImageSize = sqlite3_column_bytes(pStmt, 2);
         if (ulImageSize == 3136)
         {
-            Sample *layer = new Sample(sqlite3_column_int(pStmt, 1),
+            int realNum = sqlite3_column_int(pStmt, 1);
+            Sample *layer = new Sample(realNum,
                                        (const float *) sqlite3_column_blob(pStmt, 2),
                                        ulImageSize / sizeof(float));
+            // string path = "temp/" + to_string(index) + "_" + to_string(type) + "[" +
+            //               to_string(realNum) + "]" + ".bmp";
+            // layer->SaveAsBmp(path.c_str());
             datas.push_back(layer);
+            index++;
         }
     }
     sqlite3_finalize(pStmt);
@@ -52,6 +61,7 @@ int main()
 
     DigitalDistinguish model;
     model.PushLayer(24, 784, ReLU, DerivReLU);
+    // model.PushLayer(24, 24, ReLU, DerivReLU);
     model.PushLayer(16, 24, ReLU, DerivReLU);
     model.PushLayer(10, 16, SoftMax, DerivSoftMax);
 
