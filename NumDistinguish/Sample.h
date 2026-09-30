@@ -7,7 +7,7 @@ using namespace std;
 // 代价函数计算方式
 enum class CostFunc
 {
-    MeanSquare, // 均方差
+    MeanSquare,  // 均方差
     CrossEntropy // 交叉熵
 };
 
@@ -27,8 +27,10 @@ class TnLayer
     void operator*=(const vector<double> &vec);
     const TnVector &Values() const;
     TnVector &Values();
-    void CalcGradient(const TnVector &preActiveValues, const vector<vector<double>> &curMatrix,
-                      TnVector *preGradients);
+    const TnVector &PreActiveValues() const;
+    TnVector &PreActiveValues();
+    void CalcGradient(const TnVector &prevActiveValues, const TnVector &preActiveValues,
+                      const vector<vector<double>> &curMatrix, TnVector *preGradients);
 
   private:
   public:
@@ -40,6 +42,8 @@ class TnLayer
     DerivFuncPtr derivFunc = nullptr;
     // 在前向传播里，此值代表当前层的激活值；在反向传播里，此值代表当前层临时计算出的梯度.
     TnVector values;
+    // 当前层前向传播的预激活值 z，反向传播时用于计算激活函数的导数.
+    TnVector preActiveValues;
 };
 
 class Sample : public TnVector
@@ -51,6 +55,6 @@ class Sample : public TnVector
     Sample(const Sample &);
     Sample(int num_, const float *data, unsigned int floatCount);
 
-    double GetCostValue(CostFunc func, const TnVector & output) const;
+    double GetCostValue(CostFunc func, const TnVector &output) const;
     bool SaveAsBmp(const char *path) const;
 };

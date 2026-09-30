@@ -21,7 +21,7 @@ Sample::Sample(int realNum, const float *data, unsigned int ct)
     m_realValue = realNum;
 }
 
-double Sample::GetCostValue(CostFunc func, const TnVector & output) const
+double Sample::GetCostValue(CostFunc func, const TnVector &output) const
 {
     double costVal = 0;
     switch (func)
@@ -133,8 +133,7 @@ TnLayer::TnLayer(int row_, int colum_, ActiveFuncPtr actFunc, DerivFuncPtr deriv
     }
 }
 
-TnLayer::TnLayer(const TnLayer &neural)
-    : activeFunc(neural.activeFunc), derivFunc(neural.derivFunc)
+TnLayer::TnLayer(const TnLayer &neural) : activeFunc(neural.activeFunc), derivFunc(neural.derivFunc)
 {
     bias.resize(neural.bias.size(), 0);
     for (int r = 0; r < neural.row(); r++)
@@ -168,6 +167,7 @@ void TnLayer::operator*=(const vector<double> &vec)
         }
         values[r] = values[r] + bias[r];
     }
+    preActiveValues = values; // 激活前保存预激活值 z
     activeFunc(values);
 }
 // 在前向传播里，此值代表当前层的激活值；在反向传播里，此值代表当前层临时计算出的梯度.
@@ -181,21 +181,31 @@ TnVector &TnLayer::Values()
     return values;
 }
 
-void TnLayer::CalcGradient(const TnVector &preActiveValues, const vector<vector<double>> &curMatrix,
-                           TnVector *preGradients)
+const TnVector &TnLayer::PreActiveValues() const
+{
+    return preActiveValues;
+}
+
+TnVector &TnLayer::PreActiveValues()
+{
+    return preActiveValues;
+}
+
+void TnLayer::CalcGradient(const TnVector &prevLyActiveValues, const TnVector &preActiveValues,
+                           const vector<vector<double>> &curMatrix, TnVector *preGradients)
 {
     derivFunc(preActiveValues, values);
     if (preGradients)
     {
         preGradients->clear();
-        preGradients->resize(preActiveValues.size(), 0);
+        preGradients->resize(prevLyActiveValues.size(), 0);
     }
     for (int i = 0; i < (int) values.size(); ++i)
     {
         bias[i] += values[i]; // 偏移量的偏导数为常量1
 
-        assert(preActiveValues.size() == curMatrix[i].size());
-        for (int j = 0; j < (int) preActiveValues.size(); ++j)
+        assert(prevActiveValues.size() == curMatrix[i].size());
+        for (int j = 0; j < (int) prevLyActiveValues.size(); ++j)
         {
             if (preGradients)
             {
@@ -203,7 +213,7 @@ void TnLayer::CalcGradient(const TnVector &preActiveValues, const vector<vector<
                 (*preGradients)[j] += (curMatrix[i][j] * values[i]);
             }
             // 权重矩阵的偏导梯度值为上一层的激活值累加
-            matrix[i][j] += (preActiveValues[j] * values[i]);
+            matrix[i][j] += (prevLyActiveValues[j] * values[i]);
         }
     }
 }

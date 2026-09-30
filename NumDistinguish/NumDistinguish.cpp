@@ -46,7 +46,8 @@ void DerivSoftMax(const TnVector &preActiveValues, TnVector &vec)
 {
 }
 
-void DigitalDistinguish::PushLayer(unsigned int row, unsigned int colum, ActiveFuncPtr activeFunc, DerivFuncPtr derivFunc)
+void DigitalDistinguish::PushLayer(unsigned int row, unsigned int colum, ActiveFuncPtr activeFunc,
+                                   DerivFuncPtr derivFunc)
 {
     TnLayer *layer = new TnLayer(row, colum, activeFunc, derivFunc);
     m_layers.emplace_back(layer);
@@ -70,18 +71,18 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, int batchSize
             gradients.emplace_back(new TnLayer(*layer));
         for (Sample *batch : batchs)
         {
-            const auto & input = *batch;
+            const auto &input = *batch;
             Forward(input);
-            const auto & output = m_layers.back()->Values();
+            const auto &output = m_layers.back()->Values();
             sampleTotalVal += input.GetCostValue(CostFunc::CrossEntropy, output);
             Backward(input, output, gradients);
         }
         costs.push_back(sampleTotalVal);
         if (costs.size() > 5)
-        {   
+        {
             double averCost = 0;
             int ct = 0;
-            for(int i = costs.size() - 2; i < costs.size(); ++i)
+            for (int i = costs.size() - 2; i < costs.size(); ++i)
             {
                 ++ct;
                 averCost += costs[i];
@@ -96,7 +97,7 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, int batchSize
                 }
             }
         }
-        if(eqCt > 500)
+        if (eqCt > 500)
         {
             eqCt = 0;
             lRate *= 0.8;
@@ -104,7 +105,8 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, int batchSize
         UpdateWeights(gradients, batchs.size(), lRate);
         for (auto gradient : gradients)
             delete gradient;
-        printf("Sample Count: %d \t lRate: %.10f\tCost Value: %.5f \n", count, lRate, sampleTotalVal / batchSize);
+        printf("Sample Count: %d \t lRate: %.10f\tCost Value: %.5f \n", count, lRate,
+               sampleTotalVal / batchSize);
         count += batchSize;
     }
 }
@@ -129,7 +131,7 @@ int DigitalDistinguish::Distinguish(const Sample &sample)
     Forward(sample);
     double v = -1;
     int result = -1;
-    for (int i = 0; i < (int)m_layers.back()->Values().size(); i++)
+    for (int i = 0; i < (int) m_layers.back()->Values().size(); i++)
     {
         if (v < m_layers.back()->Values()[i])
         {
@@ -171,9 +173,13 @@ void DigitalDistinguish::Backward(const Sample &input, const TnVector &output,
     // 由输出层至输入层逐层反向传播
     for (int i = layerCt - 1; i >= 0; --i)
     {
-        const TnVector *preActiveVals = i == 0 ? &input : &m_layers[i - 1]->Values();
+        // 上一层的激活值 a_{i-1}，用于计算权重梯度
+        const TnVector *prevLyActiveVals = i == 0 ? &input : &m_layers[i - 1]->Values();
+        // 当前层的预激活值 z_i，用于计算激活函数的导数
+        const TnVector &preActiveVals = m_layers[i]->PreActiveValues();
         TnVector *preGradients = i == 0 ? nullptr : &gradientLayers[i - 1]->Values();
-        gradientLayers[i]->CalcGradient(*preActiveVals, m_layers[i]->matrix, preGradients); 
+        gradientLayers[i]->CalcGradient(*prevLyActiveVals, preActiveVals, m_layers[i]->matrix,
+                                        preGradients);
     }
 }
 
