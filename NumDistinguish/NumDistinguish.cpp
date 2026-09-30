@@ -2,11 +2,6 @@
 #include "Sample.h"
 #include "Shuffle.h"
 
-void Linear(TnVector &vec)
-{
-    return;
-}
-
 void Sigmoid(TnVector &vec)
 {
     // TODO
@@ -44,10 +39,9 @@ void DigitalDistinguish::PushLayer(unsigned int row, unsigned int colum, ActiveF
 void DigitalDistinguish::Training(const vector<Sample *> &samples, int batchSize)
 {
     Shuffle shuff(samples.size());
-    double averageCost = 100000.0;
     int count = batchSize;
     int times = 0;
-    while (times++ < 10000)
+    while (times++ < 5000)
     {
         vector<Sample *> batchs;
         shuff.GetShuffledData(samples, batchSize, batchs);
@@ -61,10 +55,8 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, int batchSize
                 output = output * (*layer);
                 layer->Active(output);
             }
-            double cost = output.GetCostValue(CostFunc::CrossEntropy);
-            sampleTotalVal += cost;
+            sampleTotalVal += output.GetCostValue(CostFunc::CrossEntropy);
         }
-        averageCost = sampleTotalVal / batchSize; // 平均值
         vector<TnLayer *> gradients;
         for (const auto &layer : m_layers)
         {
@@ -79,7 +71,7 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, int batchSize
         {
             delete gradient;
         }
-        printf("Sample Count: %d \t Cost Value: %.5f \n", count, averageCost);
+        printf("Sample Count: %d \t Cost Value: %.5f \n", count, sampleTotalVal / batchSize);
         count += batchSize;
     }
 }
@@ -95,7 +87,7 @@ TnVector DigitalDistinguish::ForwardPass(Sample &sample)
     size_t layerCount = m_layers.size() - 1;
     for (size_t i = 0; i < layerCount; i++)
     {
-        sample.MatrixMultiply(*m_layers[i], ActiveFunc::Linear);
+        sample.MatrixMultiply(*m_layers[i], ActiveFunc::ReLU);
     }
     sample.MatrixMultiply(*m_layers[layerCount], ActiveFunc::SoftMax);
     return result;
@@ -104,16 +96,16 @@ TnVector DigitalDistinguish::ForwardPass(Sample &sample)
 void DigitalDistinguish::InverseTrans(Sample &sample) const
 {
     vector<SampleLayer> &acLayers = sample.m_activeLayers;
-    acLayers[acLayers.size() - 1].out[sample.m_realValue] -= 1; // 变换梯度
+    acLayers.back().a[sample.m_realValue] -= 1; // 变换梯度
     for (int i = acLayers.size() - 2; i > -1; i--)
     {
-        for (size_t r = 0; r < acLayers[i].out.size(); r++)
+        for (size_t r = 0; r < acLayers[i].a.size(); r++)
         {
-            acLayers[i].out[r] = 0;
-            const TnLayer &weightLayer = *m_layers[i + 1LL];
+            acLayers[i].a[r] = 0;
+            const TnLayer &weightLayer = *m_layers[i + 1];
             for (int wr = 0; wr < weightLayer.row(); wr++)
             {
-                acLayers[i].out[r] += weightLayer.matrix[wr][r] * acLayers[i + 1LL].out[wr];
+                acLayers[i].a[r] += weightLayer.matrix[wr][r] * acLayers[i + 1].a[wr];
             }
         }
     }
@@ -124,12 +116,12 @@ int DigitalDistinguish::Distinguish(Sample &sample)
     ForwardPass(sample);
     double v = -1;
     int result = -1;
-    for (size_t i = 0; i < sample.m_activeLayers[sample.m_activeLayers.size() - 1].out.size(); i++)
+    for (size_t i = 0; i < sample.m_activeLayers[sample.m_activeLayers.size() - 1].a.size(); i++)
     {
-        if (v < sample.m_activeLayers[sample.m_activeLayers.size() - 1].out[i])
+        if (v < sample.m_activeLayers[sample.m_activeLayers.size() - 1].a[i])
         {
             result = i;
-            v = sample.m_activeLayers[sample.m_activeLayers.size() - 1].out[i];
+            v = sample.m_activeLayers[sample.m_activeLayers.size() - 1].a[i];
         }
     }
     return result;
@@ -163,31 +155,21 @@ void DigitalDistinguish::Backward(Sample &sample, vector<TnLayer *> &gradients)
                 switch (sample.m_activeLayers[i].activeFunc)
                 {
                 case ActiveFunc::ReLU:
-                    if (sample.m_activeLayers[i].net[r] > 0)
+                    gradients[i]->bias[r] += sample.m_activeLayers[i].a[r];
+                    if (sample.m_activeLayers[i].z[r] > 0)
                     {
-                        gradients[i]->bias[r] += sample.m_activeLayers[i].out[r];
                         for (size_t c = 0; c < gradients[i]->matrix[r].size(); c++)
                         {
-                            gradients[i]->matrix[r][c] +=
-                                sample.m_activeLayers[i].out[r] * sample[c];
+                            gradients[i]->matrix[r][c] += sample.m_activeLayers[i].a[r] * sample[c];
                         }
                     }
                     break;
                 case ActiveFunc::SoftMax:
                     for (size_t c = 0; c < gradients[i]->matrix[r].size(); c++)
                     {
-                        gradients[i]->matrix[r][c] +=
-                            sample.m_activeLayers[i].out[r] * sample[c];
+                        gradients[i]->matrix[r][c] += sample.m_activeLayers[i].a[r] * sample[c];
                     }
-                    gradients[i]->bias[r] += sample.m_activeLayers[i].out[r];
-                    break;
-                case ActiveFunc::Linear:
-                    for (size_t c = 0; c < gradients[i]->matrix[r].size(); c++)
-                    {
-                        gradients[i]->matrix[r][c] +=
-                            sample.m_activeLayers[i].out[r] * sample[c];
-                    }
-                    gradients[i]->bias[r] += sample.m_activeLayers[i].out[r];
+                    gradients[i]->bias[r] += sample.m_activeLayers[i].a[r];
                     break;
                 default:
                     break;
@@ -201,31 +183,24 @@ void DigitalDistinguish::Backward(Sample &sample, vector<TnLayer *> &gradients)
                 switch (sample.m_activeLayers[i].activeFunc)
                 {
                 case ActiveFunc::ReLU:
-                    if (sample.m_activeLayers[i].net[r] > 0)
+                    gradients[i]->bias[r] += sample.m_activeLayers[i].a[r];
+                    if (sample.m_activeLayers[i].z[r] > 0)
                     {
                         for (size_t c = 0; c < gradients[i]->matrix[r].size(); c++)
                         {
-                            gradients[i]->matrix[r][c] += sample.m_activeLayers[i].out[r] *
-                                                           sample.m_activeLayers[i - 1].out[c];
+                            gradients[i]->matrix[r][c] +=
+                                sample.m_activeLayers[i].a[r] * sample.m_activeLayers[i - 1].a[c];
                         }
-                        gradients[i]->bias[r] += sample.m_activeLayers[i].out[r];
                     }
                     break;
                 case ActiveFunc::SoftMax:
                     for (size_t c = 0; c < gradients[i]->matrix[r].size(); c++)
                     {
                         gradients[i]->matrix[r][c] +=
-                            sample.m_activeLayers[i].out[r] * sample.m_activeLayers[i - 1].out[c];
+                            sample.m_activeLayers[i].a[r] * sample.m_activeLayers[i - 1].a[c];
                     }
-                    gradients[i]->bias[r] += sample.m_activeLayers[i].out[r];
+                    gradients[i]->bias[r] += sample.m_activeLayers[i].a[r];
                     break;
-                case ActiveFunc::Linear:
-                    for (size_t c = 0; c < gradients[i]->matrix[r].size(); c++)
-                    {
-                        gradients[i]->matrix[r][c] +=
-                            sample.m_activeLayers[i].out[r] * sample.m_activeLayers[i - 1].out[c];
-                    }
-                    gradients[i]->bias[r] += sample.m_activeLayers[i].out[r];
                 default:
                     break;
                 }

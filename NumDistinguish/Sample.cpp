@@ -52,7 +52,7 @@ void Sample::MatrixMultiply(const TnLayer &neuralMat, ActiveFunc func)
     vector<double> *lastActiveLayer;
 
     m_activeLayers.size() == 0 ? lastActiveLayer = this
-                               : lastActiveLayer = &m_activeLayers[m_activeLayers.size() - 1].out;
+                               : lastActiveLayer = &m_activeLayers[m_activeLayers.size() - 1].a;
 
     if ((int) lastActiveLayer->size() != neuralMat.col())
     {
@@ -62,50 +62,9 @@ void Sample::MatrixMultiply(const TnLayer &neuralMat, ActiveFunc func)
 
     SampleLayer layer;
     layer.activeFunc = func;
-
-    layer.net.resize(neuralMat.row());
-    layer.out.resize(neuralMat.row());
-    for (int r = 0; r < neuralMat.row(); r++)
-    { // 计算输出（权重×输入）
-        double val = 0;
-        for (int c = 0; c < neuralMat.col(); c++)
-        {
-            val += (*lastActiveLayer)[c] * neuralMat.matrix[r][c];
-        }
-        layer.net[r] = val + neuralMat.bias[r];
-    }
-    switch (layer.activeFunc)
-    {
-    case ActiveFunc::ReLU:
-        for (unsigned int i = 0; i < layer.net.size(); i++)
-        {
-            layer.net[i] > 0 ? layer.out[i] = layer.net[i] : layer.out[i] = 0;
-        }
-        break;
-    case ActiveFunc::SoftMax:
-    {
-        double total = 0; // 求和
-        for (unsigned int i = 0; i < layer.net.size(); i++)
-        {
-            // printf("ori: %f\n", layer.net.activation[i]);
-            layer.out[i] = exp(layer.net[i]);
-            total += layer.out[i];
-        }
-        for (unsigned int i = 0; i < layer.net.size(); i++)
-        { // 归一化
-            layer.out[i] = layer.out[i] / total;
-            // printf("softmax: %f\n", layer.out.activation[i]);
-        }
-    }
-    break;
-    case ActiveFunc::Linear:
-    default:
-        for (unsigned int i = 0; i < layer.net.size(); i++)
-        {
-            layer.out[i] = layer.net[i];
-        }
-        break;
-    }
+    layer.z = TnVector::operator*(neuralMat);
+    layer.a = layer.z;
+    neuralMat.Active(layer.a);
     m_activeLayers.push_back(layer);
 }
 

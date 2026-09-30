@@ -6,7 +6,6 @@ using namespace std;
 
 enum class ActiveFunc
 {
-    Linear,
     Sigmoid,
     ReLU,
     SoftMax
@@ -15,17 +14,8 @@ enum class ActiveFunc
 // 代价函数计算方式
 enum class CostFunc
 {
-    // 均方差
-    MeanSquare,
-    // 交叉熵
-    CrossEntropy
-};
-
-struct SampleLayer
-{
-    vector<double> net;
-    vector<double> out;
-    ActiveFunc activeFunc;
+    MeanSquare, // 均方差
+    CrossEntropy // 交叉熵
 };
 
 class TnVector;
@@ -53,6 +43,13 @@ class TnVector : public vector<double>
 {
   public:
     TnVector operator*(const TnLayer &matrix) const;
+};
+
+struct SampleLayer
+{
+    TnVector z;
+    TnVector a;
+    ActiveFunc activeFunc;
 };
 
 class Sample : public TnVector

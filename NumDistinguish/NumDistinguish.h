@@ -2,7 +2,6 @@
 #include <vector>
 using namespace std;
 
-void Linear(TnVector &vec);
 void Sigmoid(TnVector &vec);
 void ReLU(TnVector &vec);
 void SoftMax(TnVector &vec);
