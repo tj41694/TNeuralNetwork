@@ -51,8 +51,8 @@ int main()
         return 1;
 
     DigitalDistinguish model;
-    model.PushLayer(24, 784, Linear);
-    model.PushLayer(16, 24, Linear);
+    model.PushLayer(24, 784, ReLU);
+    model.PushLayer(16, 24, ReLU);
     model.PushLayer(10, 16, SoftMax);
 
     model.Training(datas, 100);

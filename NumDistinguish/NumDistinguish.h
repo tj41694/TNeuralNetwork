@@ -14,7 +14,7 @@ class DigitalDistinguish
     ~DigitalDistinguish();
 
     void PushLayer(unsigned int row, unsigned int colum, ActiveFuncPtr activeFunc);
-    void Training(const vector<Sample *> &data, int sampleSize = 100);
+    void Training(const vector<Sample *> &data, int batchSize);
     int Distinguish(Sample &sample);
     void Validate(const vector<Sample *> &data);
 

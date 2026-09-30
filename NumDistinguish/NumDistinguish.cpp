@@ -41,16 +41,16 @@ void DigitalDistinguish::PushLayer(unsigned int row, unsigned int colum, ActiveF
     m_layers.emplace_back(layer);
 }
 
-void DigitalDistinguish::Training(const vector<Sample *> &samples, int sampleSize)
+void DigitalDistinguish::Training(const vector<Sample *> &samples, int batchSize)
 {
     Shuffle shuff(samples.size());
     double averageCost = 100000.0;
-    int count = sampleSize;
+    int count = batchSize;
     int times = 0;
-    while (times++ < 500)
+    while (times++ < 10000)
     {
         vector<Sample *> batchs;
-        shuff.GetShuffledData(samples, sampleSize, batchs);
+        shuff.GetShuffledData(samples, batchSize, batchs);
         double sampleTotalVal = 0;
         for (Sample *sample : batchs)
         {
@@ -64,7 +64,7 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, int sampleSiz
             double cost = output.GetCostValue(CostFunc::CrossEntropy);
             sampleTotalVal += cost;
         }
-        averageCost = sampleTotalVal / sampleSize; // 平均值
+        averageCost = sampleTotalVal / batchSize; // 平均值
         vector<TnLayer *> gradients;
         for (const auto &layer : m_layers)
         {
@@ -74,13 +74,13 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, int sampleSiz
         {
             Backward(*sample, gradients);
         }
-        UpdateWeights(gradients, batchs.size(), 0.005f * averageCost);
+        UpdateWeights(gradients, batchs.size(), 0.001f);
         for (auto gradient : gradients)
         {
             delete gradient;
         }
         printf("Sample Count: %d \t Cost Value: %.5f \n", count, averageCost);
-        count += sampleSize;
+        count += batchSize;
     }
 }
 
