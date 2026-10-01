@@ -3,7 +3,6 @@
 #include "sqlite3/sqlite3.h"
 #include <filesystem>
 #include <stdio.h>
-#include <string>
 
 static bool GetData(vector<Sample *> &datas, int type)
 {

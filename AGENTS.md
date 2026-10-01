@@ -1,4 +1,5 @@
 # TNeuralNetwork — AGENTS.md
+- 无论什么情况都用中文对话与回答。
 
 ## 禁止事项
 - 不要自动执行 `git commit`，只有用户明确要求时才提交。

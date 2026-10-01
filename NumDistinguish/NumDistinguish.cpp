@@ -2,6 +2,8 @@
 #include "Sample.h"
 #include "Shuffle.h"
 #include <cassert>
+#include <filesystem>
+#include <string>
 
 void Sigmoid(TnVector &input)
 {
@@ -117,12 +119,22 @@ int DigitalDistinguish::Distinguish(const Sample &sample)
 
 void DigitalDistinguish::Validate(const vector<Sample *> &data)
 {
+    // const char *errorDir = "errors";
+    // std::filesystem::create_directories(errorDir);
     int corectCount = 0;
+    int index = 0;
     for (auto s : data)
     {
         int num = Distinguish(*s);
         if (num == s->m_realValue)
             corectCount++;
+        else
+        {
+            // string path = string(errorDir) + "/" + to_string(index) + "_pred" + to_string(num) +
+            //               "_real" + to_string(s->m_realValue) + ".bmp";
+            // s->SaveAsBmp(path.c_str());
+        }
+        index++;
     }
     double corectRate = 100.0 * (double) corectCount / data.size();
     printf("accuracy: %.3f%%\n", corectRate);
