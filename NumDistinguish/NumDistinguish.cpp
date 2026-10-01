@@ -58,9 +58,7 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, int batchSize
     Shuffle shuff(samples.size());
     int count = batchSize;
     int times = 0;
-    vector<double> costs;
-    int eqCt = 0;
-    double lRate = 0.003;
+    double lRate = 0.1;
     while (times++ < 25000)
     {
         vector<Sample *> batchs;
@@ -76,31 +74,6 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, int batchSize
             const auto &output = m_layers.back()->Values();
             sampleTotalVal += input.GetCostValue(CostFunc::CrossEntropy, output);
             Backward(input, output, gradients);
-        }
-        costs.push_back(sampleTotalVal);
-        if (costs.size() > 5)
-        {
-            double averCost = 0;
-            int ct = 0;
-            for (int i = costs.size() - 2; i < costs.size(); ++i)
-            {
-                ++ct;
-                averCost += costs[i];
-            }
-            averCost /= ct;
-            if (costs.back() < averCost * 1.1)
-            {
-                // lRate *= 0.8;
-                if (costs.back() > averCost * 0.9)
-                {
-                    eqCt++;
-                }
-            }
-        }
-        if (eqCt > 500)
-        {
-            eqCt = 0;
-            lRate *= 0.8;
         }
         UpdateWeights(gradients, batchs.size(), lRate);
         for (auto gradient : gradients)
