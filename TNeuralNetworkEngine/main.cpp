@@ -9,7 +9,6 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include <filesystem>
 #include <iostream>
 #include <string>
@@ -35,6 +34,39 @@ BOOL WINAPI ConsoleHandler(DWORD type)
         return TRUE;
     }
     return FALSE;
+}
+
+// 终端里中文乱码的根因：源码与 printf 走的是 UTF-8 字节，而 Windows 控制台默认按系统
+// ANSI 代码页（简中为 936/GBK）解码这些字节，两者不一致就成了"鐢ㄦ硶"这种乱码。
+// 把控制台输出代码页切到 UTF-8 让两边对齐；退出时恢复原值，免得影响同一窗口后续的程序。
+UINT g_consoleCpToRestore = 0; // 0 表示没改过，不需要恢复
+
+void RestoreConsoleOutputCp()
+{
+    if (g_consoleCpToRestore != 0)
+    {
+        SetConsoleOutputCP(g_consoleCpToRestore);
+    }
+}
+
+void SetupConsoleOutputUtf8()
+{
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD mode = 0;
+    // 输出被重定向到文件或管道时没有控制台代码页这回事：UTF-8 字节本来就是想要的编码.
+    if (hOut == nullptr || hOut == INVALID_HANDLE_VALUE || !GetConsoleMode(hOut, &mode))
+    {
+        return;
+    }
+
+    const UINT previous = GetConsoleOutputCP();
+    if (previous == 0 || previous == CP_UTF8 || !SetConsoleOutputCP(CP_UTF8))
+    {
+        return;
+    }
+
+    g_consoleCpToRestore = previous;
+    std::atexit(RestoreConsoleOutputCp);
 }
 #endif
 
@@ -274,6 +306,11 @@ void HoldServerAlive(const std::string &url)
 
 int main(int argc, char **argv)
 {
+#if defined(_WIN32)
+    // 必须在任何 printf 之前：--help 与参数报错都要用中文.
+    SetupConsoleOutputUtf8();
+#endif
+
     Options opt;
     if (!ParseArgs(argc, argv, opt))
     {

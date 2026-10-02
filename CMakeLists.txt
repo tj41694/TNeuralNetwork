@@ -7,20 +7,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_executable(NumDistinguish
-    NumDistinguish/main.cpp
-    NumDistinguish/NumDistinguish.cpp
-    NumDistinguish/Sample.cpp
-    NumDistinguish/Shuffle.cpp
-    NumDistinguish/TnRandom.cpp
+    TNeuralNetworkEngine/main.cpp
+    TNeuralNetworkEngine/NumDistinguish.cpp
+    TNeuralNetworkEngine/Sample.cpp
+    TNeuralNetworkEngine/Shuffle.cpp
+    TNeuralNetworkEngine/TnRandom.cpp
     record/Recorder.cpp
     web/DashboardServer.cpp
-    NumDistinguish/sqlite3/sqlite3.c
+    TNeuralNetworkEngine/sqlite3/sqlite3.c
 )
 
 # record/ 与 web/ 各自是一个自洽的功能目录（见各自的 README.md）：
 # record/ 只负责把遥测写成文件，web/ 只负责把这些文件只读地提供给浏览器。
 target_include_directories(NumDistinguish PRIVATE
-    NumDistinguish
+    TNeuralNetworkEngine
     record
     web
 )

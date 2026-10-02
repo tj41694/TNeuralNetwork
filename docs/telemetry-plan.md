@@ -7,7 +7,7 @@
 
 | 部分 | 位置 |
 |---|---|
-| 随机源（可复现） | `NumDistinguish/TnRandom.h/.cpp` |
+| 随机源（可复现） | `TNeuralNetworkEngine/TnRandom.h/.cpp` |
 | 遥测写入 | `record/`（`Recorder.h/.cpp`，见 `record/README.md`） |
 | 只读 HTTP 服务 | `web/`（`DashboardServer.h/.cpp` + `web/httplib/`，cpp-httplib v0.58.0，MIT） |
 | 前端 | `web/`（protocol.js / charts.js / gl.js / app.js / index.html / style.css，无构建步骤） |
