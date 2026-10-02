@@ -48,10 +48,10 @@ void DerivSoftMax(const TnVector &preActiveValues, TnVector &vec)
 {
 }
 
-void DigitalDistinguish::PushLayer(unsigned int row, unsigned int colum, ActiveFuncPtr activeFunc,
+void DigitalDistinguish::PushLayer(unsigned int input, unsigned int output, ActiveFuncPtr activeFunc,
                                    DerivFuncPtr derivFunc)
 {
-    TnLayer *layer = new TnLayer(row, colum, activeFunc, derivFunc);
+    TnLayer *layer = new TnLayer(output, input, activeFunc, derivFunc);
     m_layers.emplace_back(layer);
 }
 

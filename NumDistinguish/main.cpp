@@ -59,10 +59,10 @@ int main()
         return 1;
 
     DigitalDistinguish model;
-    model.PushLayer(24, 784, ReLU, DerivReLU);
-    // model.PushLayer(24, 24, ReLU, DerivReLU);
-    model.PushLayer(16, 24, ReLU, DerivReLU);
-    model.PushLayer(10, 16, SoftMax, DerivSoftMax);
+    model.PushLayer(784, 24, ReLU, DerivReLU);
+    model.PushLayer(24, 24, ReLU, DerivReLU);
+    model.PushLayer(24, 16, ReLU, DerivReLU);
+    model.PushLayer(16, 10, SoftMax, DerivSoftMax);
 
     model.Training(datas, 100);
 
