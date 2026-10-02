@@ -48,8 +48,8 @@ void DerivSoftMax(const TnVector &preActiveValues, TnVector &vec)
 {
 }
 
-void DigitalDistinguish::PushLayer(unsigned int input, unsigned int output, ActiveFuncPtr activeFunc,
-                                   DerivFuncPtr derivFunc)
+void DigitalDistinguish::PushLayer(unsigned int input, unsigned int output,
+                                   ActiveFuncPtr activeFunc, DerivFuncPtr derivFunc)
 {
     TnLayer *layer = new TnLayer(output, input, activeFunc, derivFunc);
     m_layers.emplace_back(layer);
@@ -77,7 +77,7 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, int batchSize
             sampleTotalVal += input.GetCostValue(CostFunc::CrossEntropy, output);
             Backward(input, output, gradients);
         }
-        UpdateWeights(gradients, batchs.size(), lRate);
+        UpdateWeights(gradients, batchs.size(),  times < 20000 ? lRate : 0.05);
         for (auto gradient : gradients)
             delete gradient;
         printf("Sample Count: %d \t lRate: %.10f\tCost Value: %.5f \n", count, lRate,

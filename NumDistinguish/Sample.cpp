@@ -222,7 +222,7 @@ void TnLayer::CalcGradient(const TnVector &prevLyActiveValues, const TnLayer &cu
     {
         bias[i] += values[i]; // 偏移量的偏导数为常量1
 
-        assert(prevActiveValues.size() == curLayer.matrix[i].size());
+        assert(prevLyActiveValues.size() == curLayer.matrix[i].size());
         for (int j = 0; j < (int) prevLyActiveValues.size(); ++j)
         {
             if (preGradients)
