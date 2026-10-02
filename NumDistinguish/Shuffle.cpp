@@ -1,21 +1,18 @@
 #include "Shuffle.h"
+#include "TnRandom.h"
 #include <algorithm>
-#include <chrono>
-#include <random>
 
 using namespace std;
 
 Shuffle::Shuffle(size_t size_)
 {
-    // obtain a time-based seed:
-    auto seed = (unsigned) chrono::system_clock::now().time_since_epoch().count();
-
+    // 与权重初始化共用同一个随机源，否则 seed 无法复现整轮训练.
     randomIndeces.resize(size_);
 
     for (size_t i = 0; i < size_; i++)
         randomIndeces[i] = i;
 
-    shuffle(randomIndeces.begin(), randomIndeces.end(), default_random_engine(seed));
+    RandomShuffle(randomIndeces);
 }
 
 void Shuffle::GetShuffledData(const vector<Sample *> &samples, int count, vector<Sample *> &shuffledData)
@@ -30,8 +27,7 @@ void Shuffle::GetShuffledData(const vector<Sample *> &samples, int count, vector
     }
     if (curIndex + count > size)
     {
-        auto seed = (unsigned) chrono::system_clock::now().time_since_epoch().count();
-        shuffle(randomIndeces.begin(), randomIndeces.end(), default_random_engine(seed));
+        RandomShuffle(randomIndeces);
     }
     curIndex %= size;
 }

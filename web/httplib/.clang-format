@@ -1,0 +1,3 @@
+# 内置的第三方单头文件库，不参与格式化。
+DisableFormat: true
+SortIncludes: Never

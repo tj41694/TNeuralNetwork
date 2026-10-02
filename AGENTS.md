@@ -1,48 +1,58 @@
 # TNeuralNetwork — AGENTS.md
+
 - 无论什么情况都用中文对话与回答。
 
 ## 禁止事项
 - 不要自动执行 `git commit`，只有用户明确要求时才提交。
-- 含中文的注释/文档一律使用 UTF-8 编码。
+- 含中文的注释/文档一律用 UTF-8。
+- 不要格式化 `NumDistinguish/sqlite3/` 与 `web/httplib/`（内置第三方源码）。
 
 ## 构建与运行
-CMake + Ninja + Clang（本机缓存为 LLVM `clang-cl`，Release）。无测试、无 CI。
+CMake + Ninja + clang/clang++（GNU 驱动，Release）。无测试、无 CI。
 
 ```powershell
-# 首次配置（生成 build/build.ninja）
-cmake -G Ninja -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang -B build
-# 增量构建
-cmake --build build          # 等价于 ninja -C build
+cmake -G Ninja -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang -B build  # 仅首次
+cmake --build build                                                            # 增量
+cd build; .\NumDistinguish.exe                                                 # 必须在 build/ 下运行
 ```
 
-运行必须在 `build/` 目录下执行——`main.cpp:9` 以相对路径 `resources/test.db` 打开数据库：
-
-```powershell
-cd build; .\NumDistinguish.exe
-```
-
-- `build/resources/test.db`（约 287MB）**不在 git 中**，新克隆后需自备；缺失或工作目录不对时程序直接 `return 1`。
-- 训练循环固定 15000 轮、每 batch 打印一行（`NumDistinguish.cpp:60`），完整跑完耗时很长，不要误判为卡死。
+- `main.cpp` 以相对路径打开 `resources/test.db`，所以工作目录必须是 `build/`。该库（约 287MB）不在 git 中，新克隆需自备，缺失直接 `return 1`。
+- 常用参数：`--exp NAME`、`--seed N`、`--steps N`、`--probes N`、`--port N`、`--serve-only`（只回看 runs/，不训练）、`--no-hold`、`--help`。
+- 21000 步约 2 分钟（Release，本机），默认每 100 步打印一行；别因为打印稀疏就误判成卡死。
 
 ## 代码约定
-- `.clang-format`：LLVM 基础，Allman 花括号，4 空格缩进，列宽 100；**C 语言禁用格式化**（文件末尾 `Language: C / DisableFormat: true`）。不要格式化 `NumDistinguish/sqlite3/`。
-- `.clang-tidy`：`Checks: '*'`。命名约定：类/结构体/枚举 `CamelCase`，函数/变量 `camelBack`，private/protected 成员后缀 `_`。
-- clangd LSP 见 `opencode.json` + `.clangd`，依赖 `build/compile_commands.json`（CMake 已开启 `CMAKE_EXPORT_COMPILE_COMMANDS`）。改动源码后重建以刷新索引。
+- `.clang-format`：LLVM + Allman + 4 空格 + 列宽 100；C 语言禁用格式化。
+- 命名：类型 `CamelCase`，函数/变量 `camelBack`，成员用 `m_` 前缀（`m_layers`、`m_realValue`）。`.clang-tidy` 里配的成员后缀 `_` 与现有代码不符，不要为迎合它改名。
+- clangd 依赖 `build/compile_commands.json`；改动源码后重建以刷新索引。
 
 ## 架构
-单可执行文件，源码全在 `NumDistinguish/`：
+源码按职责分三个目录，功能代码与训练模型是解耦的：
 
-| 文件 | 作用 |
-|---|---|
-| `main.cpp` | 入口：读 SQLite → 建 3 层网络 → `Training` → `Validate` |
-| `NumDistinguish.h/.cpp` | `DigitalDistinguish` 模型（`PushLayer`/`Forward`/`Backward`/`UpdateWeights`）+ 激活函数 |
-| `Sample.h/.cpp` | `TnVector`(vector<double>)、`TnLayer`(权重矩阵+偏置)、`Sample`(标签+数据)、`CostFunc` 枚举 |
-| `Shuffle.h/.cpp` | mini-batch 随机采样池 |
-| `sqlite3/` | 内嵌 SQLite 合并源，勿改 |
+| 目录 | 是什么 | 详见 |
+|---|---|---|
+| `NumDistinguish/` | 模型本体与入口：`main.cpp`（CLI + 组装）、`NumDistinguish.*`（`DigitalDistinguish` + 激活函数）、`Sample.*`（`TnVector`/`TnLayer`/`Sample`/`CostFunc`）、`Shuffle.*`（mini-batch 采样池）、`TnRandom.*`（全局随机源）、`sqlite3/`（内嵌合并源，勿改） | 本文件 |
+| `record/` | **训练遥测的写入端**：只负责把 loss/lr/范数、权重直方图、probe 激活写成 `runs/<exp>_<时间戳>/` 下的文件。不碰网络，不引用训练对象以外的任何东西 | [`record/README.md`](record/README.md) |
+| `web/` | **整个 Web 功能**：只读 HTTP 服务（`DashboardServer.*` + `httplib/`，cpp-httplib v0.58.0）+ 纯静态前端（`index.html`/`app.js`/`protocol.js`/`charts.js`/`gl.js`/`style.css`）。只读 `runs/`，不引用训练内存 | [`web/README.md`](web/README.md) |
 
-- 网络（`main.cpp:54-56`）：784 → 24(ReLU) → 16(ReLU) → 10(SoftMax)，损失 CrossEntropy，SGD lr=0.001、batch=100。
-- **`TnLayer::values` 一值两用**：前向传播时是激活值，反向传播时被 `CalcGradient` 重写为梯度；同一对象在不同阶段含义不同，改代码时勿混用。
-- 反向传播在 batch 内对共享 gradient layer 累加梯度，`UpdateWeights` 再除以 batchSize；gradient layer 由拷贝构造生成、零初始化。
-- `matrix`/`bias` 为 public；`TnLayer::operator*=` 内完成矩阵乘 + 加 bias + 激活。
-- 数据表 `tr_data`(训练) / `te_data`(测试)，列 `(id, label, image_blob)`；图像 784 个 float，仅当 blob 恰为 3136 字节时才加载。
-- `Sigmoid` / `DerivSigmoid` / `DerivSoftMax` 仍是 TODO 空实现。
+**改动时的边界**：`record/` 只写文件、`web/` 只读文件，两者之间不共享内存也不需要锁；
+文件格式是它们唯一的契约，改任何一方都要同步 `web/protocol.js`、`docs/telemetry-plan.md` §4 与 `tools/proto-check.mjs`。
+
+模型细节（`NumDistinguish/`）：
+
+- 网络与超参（`main.cpp` 建网络、`TrainingOptions` 给默认值）：784 → 24(ReLU) → 24(ReLU) → 16(ReLU) → 10(SoftMax)，CrossEntropy，SGD，batch=100，默认 25000 步。
+- 学习率在 `TrainingOptions` 里：step ≥ 20000 后由 0.1 降到 0.05。日志记录的是**真正传入** `UpdateWeights` 的值。
+- **`TnLayer::values` 一值两用**：前向是激活值，反向被 `CalcGradient` 重写成梯度，勿混用。batch 内对共享 gradient layer 累加梯度（拷贝构造、零初始化），`UpdateWeights` 再除以 batchSize。
+- `matrix`/`bias`/`preActiveValues` 是 `protected`/`private`，但已有只读访问器 `Matrix()` / `Bias()` / `PreActiveValues()`；`operator*=` 内完成矩阵乘 + 加 bias + 激活。
+- `DerivSoftMax` 的空实现是 softmax+CE 的**有意设计**（梯度已在 `Backward` 里写成 `output - onehot`），不要"补全"；`Sigmoid`/`DerivSigmoid` 才是真 TODO。
+- 随机性统一走 `TnRandom`（mt19937 + 显式 seed 写进 `meta.json`），**不要**再用 `rand()` 或当前时间做种子，否则 run 之间无法对比。
+- 数据表 `tr_data`(训练)/`te_data`(测试)，列 `(id, label, image_blob)`；图像 784 个 float，仅当 blob 恰为 3136 字节时才加载。
+
+## 遥测与可视化
+训练遥测写入**仓库根的 `runs/<exp>_<时间戳>/`**（默认 `--out ../runs`，已被 git 忽略），由 `web/` 的只读 HTTP 服务提供给浏览器；`runs/` 下每个文件由 `record/` 写入、由 `web/` 只读消费，训练结束后可用 `--serve-only` 继续回看。格式、协议与踩过的坑见 [`docs/telemetry-plan.md`](docs/telemetry-plan.md)。
+
+前端是 `web/` 下的纯静态 ES module（无构建步骤），校验脚本在 `tools/`：
+
+```powershell
+node tools\proto-check.mjs <origin> <runName> <runsDir> [staticOrigin]   # 增量协议
+node tools\charts-check.mjs <origin> <runName>                          # 图表数学
+```

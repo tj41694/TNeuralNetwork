@@ -32,6 +32,11 @@ class TnLayer
     void CalcGradient(const TnVector &prevActiveValues, const TnLayer &curLayer,
                       TnVector *preGradients);
 
+    // 只读访问器：供遥测读取权重与预激活值，不影响训练逻辑.
+    const vector<vector<double>> &Matrix() const;
+    const vector<double> &Bias() const;
+    const TnVector &PreActiveValues() const;
+
   protected:
     vector<vector<double>> matrix;
     vector<double> bias;

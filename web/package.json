@@ -1,0 +1,6 @@
+{
+  "//": "纯静态 ES module 前端，没有构建步骤；这个文件只是告诉 Node/编辑器按 ESM 解析 .js。",
+  "name": "tnn-web",
+  "private": true,
+  "type": "module"
+}

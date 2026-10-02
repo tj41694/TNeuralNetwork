@@ -2,8 +2,45 @@
 #include "Sample.h"
 #include "Shuffle.h"
 #include <cassert>
+#include <chrono>
+#include <cmath>
+#include <cstdio>
 #include <filesystem>
 #include <string>
+
+namespace
+{
+double NormSquared(const TnLayer &layer)
+{
+    double sum = 0;
+    for (const auto &row : layer.Matrix())
+    {
+        for (double v : row)
+        {
+            sum += v * v;
+        }
+    }
+    for (double v : layer.Bias())
+    {
+        sum += v * v;
+    }
+    return sum;
+}
+
+uint64_t SteadyMs()
+{
+    using namespace std::chrono;
+    return static_cast<uint64_t>(
+        duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
+}
+
+int64_t WallMs()
+{
+    using namespace std::chrono;
+    return static_cast<int64_t>(
+        duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
+}
+} // namespace
 
 void Sigmoid(TnVector &input)
 {
@@ -55,14 +92,24 @@ void DigitalDistinguish::PushLayer(unsigned int input, unsigned int output,
     m_layers.emplace_back(layer);
 }
 
-void DigitalDistinguish::Training(const vector<Sample *> &samples, int batchSize)
+void DigitalDistinguish::Training(const vector<Sample *> &samples, const TrainingOptions &options)
 {
     Shuffle shuff(samples.size());
-    int count = batchSize;
-    int times = 0;
-    double lRate = 0.1;
-    while (times++ < 25000)
+    const int batchSize = options.batchSize > 0 ? options.batchSize : 1;
+    Recorder *recorder = options.recorder;
+    const LoggingPolicy *policy = (recorder != nullptr) ? &recorder->Policy() : nullptr;
+    const uint32_t printEvery = (policy != nullptr) ? policy->printEvery : 0;
+
+    const uint64_t startMs = SteadyMs();
+    uint64_t samplesSeen = 0;
+
+    for (uint32_t step = 1; step <= options.totalSteps; ++step)
     {
+        if (options.stopRequested != nullptr && options.stopRequested->load())
+        {
+            break;
+        }
+
         vector<Sample *> batchs;
         shuff.GetShuffledData(samples, batchSize, batchs);
         double sampleTotalVal = 0;
@@ -77,12 +124,69 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, int batchSize
             sampleTotalVal += input.GetCostValue(CostFunc::CrossEntropy, output);
             Backward(input, output, gradients);
         }
-        UpdateWeights(gradients, batchs.size(),  times < 20000 ? lRate : 0.05);
+
+        // 必须在 UpdateWeights 之前取：那时梯度层还是"累加后的原始梯度"，
+        // 一旦 UpdateWeights 跑过就被按 lr/batchSize 缩放并相减了.
+        double gradNorm = 0;
+        for (const auto *gradient : gradients)
+            gradNorm += NormSquared(*gradient);
+        gradNorm = sqrt(gradNorm);
+
+        const double lr = (step >= options.lrDecayFromStep) ? options.lrLow : options.lrHigh;
+        UpdateWeights(gradients, batchs.size(), lr);
         for (auto gradient : gradients)
             delete gradient;
-        printf("Sample Count: %d \t lRate: %.10f\tCost Value: %.5f \n", count, lRate,
-               sampleTotalVal / batchSize);
-        count += batchSize;
+
+        double weightNorm = 0;
+        for (const auto *layer : m_layers)
+            weightNorm += NormSquared(*layer);
+        weightNorm = sqrt(weightNorm);
+
+        const size_t effectiveBatch = batchs.empty() ? static_cast<size_t>(batchSize) : batchs.size();
+        samplesSeen += effectiveBatch;
+        const double loss = sampleTotalVal / static_cast<double>(effectiveBatch);
+
+        if (recorder != nullptr)
+        {
+            ScalarRecord record;
+            record.step = step;
+            record.samplesSeen = samplesSeen;
+            record.elapsedMs = static_cast<double>(SteadyMs() - startMs);
+            record.wallMs = WallMs();
+            record.lr = lr;
+            record.loss = loss;
+            record.gradNorm = gradNorm;
+            record.weightNorm = weightNorm;
+            record.updateRatio = (weightNorm > 0.0)
+                                     ? (lr / static_cast<double>(effectiveBatch)) * gradNorm /
+                                           weightNorm
+                                     : 0.0;
+            recorder->LogScalars(record);
+
+            if (policy->histEvery > 0 && step % policy->histEvery == 0)
+            {
+                recorder->LogHistograms(step, m_layers);
+            }
+
+            if (policy->actEvery > 0 && step % policy->actEvery == 0 &&
+                options.probes != nullptr && !options.probes->empty())
+            {
+                // 权重与激活必须对应同一个 step，所以在 UpdateWeights 之后单独跑一次
+                // 前向。它会覆盖 m_layers 的 values，但下一轮会完整重算，无害.
+                for (size_t i = 0; i < options.probes->size(); ++i)
+                {
+                    Forward(*(*options.probes)[i]);
+                    recorder->LogActivations(step, static_cast<uint32_t>(i), m_layers);
+                }
+            }
+            recorder->Heartbeat(step);
+        }
+
+        if (printEvery == 0 || step % printEvery == 0 || step == options.totalSteps)
+        {
+            printf("Step: %u \t Samples: %llu \t lRate: %.6f \t Cost Value: %.5f\n", step,
+                   static_cast<unsigned long long>(samplesSeen), lr, loss);
+        }
     }
 }
 

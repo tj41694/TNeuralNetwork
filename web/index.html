@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TNeuralNetwork 训练监控</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>训练监控</h1>
+    <select id="run" title="选择 run"></select>
+    <span id="status" class="pill">加载中</span>
+    <span id="progress" class="muted"></span>
+    <span id="warn" class="warn"></span>
+    <label class="muted"><input type="checkbox" id="fullAxis" checked> 全 run 时间轴</label>
+    <span id="origin" class="muted"></span>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Loss <span class="hint">原始 + EMA</span></h2>
+      <canvas id="loss"></canvas>
+    </section>
+
+    <section class="card">
+      <h2>学习率</h2>
+      <canvas id="lr"></canvas>
+    </section>
+
+    <section class="card">
+      <h2>范数 <span class="hint">梯度 / 权重</span></h2>
+      <canvas id="norm"></canvas>
+    </section>
+
+    <section class="card">
+      <h2>更新比 <span class="hint">‖Δw‖ / ‖w‖</span></h2>
+      <canvas id="ratio"></canvas>
+    </section>
+
+    <section class="card wide">
+      <h2>
+        权重直方图 <span class="hint">x = 采样序号，y = 分箱（下=小值）</span>
+        <select id="histLayer"></select>
+        <span id="histHint" class="hint"></span>
+      </h2>
+      <canvas id="hist"></canvas>
+    </section>
+
+    <section class="card wide">
+      <h2>Probe 激活 <select id="probeSel"></select></h2>
+      <canvas id="act"></canvas>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

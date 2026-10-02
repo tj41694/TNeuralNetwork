@@ -1,8 +1,7 @@
 #include "Sample.h"
+#include "TnRandom.h"
 #include <cassert>
 #include <cstdio>
-#include <cstdlib> // Header file needed to use srand and rand
-#include <ctime>   // Header file needed to use time
 
 using namespace std;
 
@@ -113,12 +112,7 @@ bool Sample::SaveAsBmp(const char *path) const
 TnLayer::TnLayer(int row_, int colum_, ActiveFuncPtr actFunc, DerivFuncPtr derivFunc_)
     : activeFunc(actFunc), derivFunc(derivFunc_)
 {
-    static bool initial = false;
-    if (!initial)
-    {
-        srand((unsigned int) time(0));
-        initial = true;
-    }
+    // 随机源统一走 TnRandom，种子由外部指定并记录在 meta.json 里，保证可复现.
     bias.resize(row_);
     for (int r = 0; r < row_; r++)
     {
@@ -126,10 +120,10 @@ TnLayer::TnLayer(int row_, int colum_, ActiveFuncPtr actFunc, DerivFuncPtr deriv
         row.resize(colum_);
         for (int c = 0; c < colum_; c++)
         {
-            row[c] = rand() * 2.0 / RAND_MAX - 1.0;
+            row[c] = RandomUniform(-1.0, 1.0);
         }
         matrix.emplace_back(row);
-        bias[r] = rand() * 2.0 / RAND_MAX - 1.0;
+        bias[r] = RandomUniform(-1.0, 1.0);
     }
 }
 
@@ -207,6 +201,21 @@ const TnVector &TnLayer::Values() const
 TnVector &TnLayer::Values()
 {
     return values;
+}
+
+const vector<vector<double>> &TnLayer::Matrix() const
+{
+    return matrix;
+}
+
+const vector<double> &TnLayer::Bias() const
+{
+    return bias;
+}
+
+const TnVector &TnLayer::PreActiveValues() const
+{
+    return preActiveValues;
 }
 
 void TnLayer::CalcGradient(const TnVector &prevLyActiveValues, const TnLayer &curLayer,
