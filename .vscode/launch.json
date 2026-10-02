@@ -8,7 +8,7 @@
             "program": "${command:cmake.launchTargetPath}",
             "args": [],
             "cwd": "${workspaceFolder}/build",
-            "preLaunchTask": "CMake: build"
+            "preLaunchTask": "CMake: Build"
         }
     ]
 }
