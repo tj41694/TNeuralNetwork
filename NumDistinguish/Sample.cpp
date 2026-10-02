@@ -170,6 +170,34 @@ void TnLayer::operator*=(const vector<double> &vec)
     preActiveValues = values; // 激活前保存预激活值 z
     activeFunc(values);
 }
+
+void TnLayer::operator*=(double scalar)
+{
+    for (size_t r = 0; r < matrix.size(); ++r)
+    {
+        bias[r] *= scalar;
+        for (size_t c = 0; c < matrix[r].size(); ++c)
+        {
+            matrix[r][c] *= scalar;
+        }
+    }
+}
+
+void TnLayer::operator-=(const TnLayer &other)
+{
+    assert(matrix.size() == other.matrix.size());
+    assert(bias.size() == other.bias.size());
+    for (size_t r = 0; r < matrix.size(); ++r)
+    {
+        assert(matrix[r].size() == other.matrix[r].size());
+        bias[r] -= other.bias[r];
+        for (size_t c = 0; c < matrix[r].size(); ++c)
+        {
+            matrix[r][c] -= other.matrix[r][c];
+        }
+    }
+}
+
 // 在前向传播里，此值代表当前层的激活值；在反向传播里，此值代表当前层临时计算出的梯度.
 const TnVector &TnLayer::Values() const
 {
@@ -181,20 +209,10 @@ TnVector &TnLayer::Values()
     return values;
 }
 
-const TnVector &TnLayer::PreActiveValues() const
+void TnLayer::CalcGradient(const TnVector &prevLyActiveValues, const TnLayer &curLayer,
+                           TnVector *preGradients)
 {
-    return preActiveValues;
-}
-
-TnVector &TnLayer::PreActiveValues()
-{
-    return preActiveValues;
-}
-
-void TnLayer::CalcGradient(const TnVector &prevLyActiveValues, const TnVector &preActiveValues,
-                           const vector<vector<double>> &curMatrix, TnVector *preGradients)
-{
-    derivFunc(preActiveValues, values);
+    derivFunc(curLayer.preActiveValues, values);
     if (preGradients)
     {
         preGradients->clear();
@@ -204,13 +222,13 @@ void TnLayer::CalcGradient(const TnVector &prevLyActiveValues, const TnVector &p
     {
         bias[i] += values[i]; // 偏移量的偏导数为常量1
 
-        assert(prevActiveValues.size() == curMatrix[i].size());
+        assert(prevActiveValues.size() == curLayer.matrix[i].size());
         for (int j = 0; j < (int) prevLyActiveValues.size(); ++j)
         {
             if (preGradients)
             {
                 // 前一层的激活值偏导梯度为此层权重累加
-                (*preGradients)[j] += (curMatrix[i][j] * values[i]);
+                (*preGradients)[j] += (curLayer.matrix[i][j] * values[i]);
             }
             // 权重矩阵的偏导梯度值为上一层的激活值累加
             matrix[i][j] += (prevLyActiveValues[j] * values[i]);

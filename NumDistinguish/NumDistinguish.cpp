@@ -160,27 +160,19 @@ void DigitalDistinguish::Backward(const Sample &input, const TnVector &output,
     {
         // 上一层的激活值 a_{i-1}，用于计算权重梯度
         const TnVector *prevLyActiveVals = i == 0 ? &input : &m_layers[i - 1]->Values();
-        // 当前层的预激活值 z_i，用于计算激活函数的导数
-        const TnVector &preActiveVals = m_layers[i]->PreActiveValues();
         TnVector *preGradients = i == 0 ? nullptr : &gradientLayers[i - 1]->Values();
-        gradientLayers[i]->CalcGradient(*prevLyActiveVals, preActiveVals, m_layers[i]->matrix,
-                                        preGradients);
+        gradientLayers[i]->CalcGradient(*prevLyActiveVals, *m_layers[i], preGradients);
     }
 }
 
 void DigitalDistinguish::UpdateWeights(const vector<TnLayer *> &gradients, size_t batchSize,
                                        double stepRate)
 {
+    double ratio = stepRate / batchSize;
     for (size_t i = 0; i < m_layers.size(); i++)
     {
-        for (size_t r = 0; r < gradients[i]->matrix.size(); r++)
-        {
-            m_layers[i]->bias[r] -= (stepRate * gradients[i]->bias[r] / batchSize);
-            for (size_t c = 0; c < gradients[i]->matrix[r].size(); c++)
-            {
-                m_layers[i]->matrix[r][c] -= (stepRate * gradients[i]->matrix[r][c] / batchSize);
-            }
-        }
+        *gradients[i] *= ratio;
+        *m_layers[i] -= *gradients[i];
     }
 }
 

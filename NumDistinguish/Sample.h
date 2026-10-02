@@ -25,15 +25,14 @@ class TnLayer
     int row() const;
     int col() const;
     void operator*=(const vector<double> &vec);
+    void operator*=(double scalar);
+    void operator-=(const TnLayer &other);
     const TnVector &Values() const;
     TnVector &Values();
-    const TnVector &PreActiveValues() const;
-    TnVector &PreActiveValues();
-    void CalcGradient(const TnVector &prevActiveValues, const TnVector &preActiveValues,
-                      const vector<vector<double>> &curMatrix, TnVector *preGradients);
+    void CalcGradient(const TnVector &prevActiveValues, const TnLayer &curLayer,
+                      TnVector *preGradients);
 
-  private:
-  public:
+  protected:
     vector<vector<double>> matrix;
     vector<double> bias;
 
