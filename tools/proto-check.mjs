@@ -104,11 +104,51 @@ async function main() {
     for (const v of l.counts) sum += v;
     return sum > 0;
   }));
-  const edge = hist.records.length > 0 ? hist.header.layers.map((l, i) => {
-    const rec = hist.records[0].layers[i];
-    return rec.min >= l.min - 1e-6 && rec.max <= l.max + 1e-6;
-  }) : [];
-  check('首条直方图权重范围落在固定分箱范围内', edge.every(Boolean));
+  // counts 之和必须等于该层的参数个数（权重 in×out + 偏置 out）。
+  // 这是直方图最硬的正确性证据：既证明分箱没丢值，也证明没重复计数。
+  const paramCountOk = (rec) => rec.layers.every((l, i) => {
+    const meta = hist.header.layers[i];
+    let sum = 0;
+    for (const v of l.counts) sum += v;
+    return sum === meta.in * meta.out + meta.out;
+  });
+  check('首条直方图 counts 之和 = 该层参数个数', hist.records.length > 0 && paramCountOk(hist.records[0]));
+  check('末条直方图 counts 之和 = 该层参数个数', hist.records.length > 0 && paramCountOk(hist.records[hist.records.length - 1]));
+
+  // 分箱范围是**每层各自固定**的（写在该层文件头的 min/max 里）。边缘 bin 里同时装着
+  // "合法尾巴"和"被截断的极值"，所以按**堆积质量占比**判断严重程度，而不是"有没有任何一个
+  // 权重越界"—— 输出层那几个离群权重不值得为它牺牲全 run 的分辨率。
+  if (hist.records.length > 0) {
+    const L = hist.header.layers.length;
+    const peaks = new Array(L).fill(0);
+    const edgeMax = new Array(L).fill(0);
+    for (const rec of hist.records) {
+      rec.layers.forEach((l, i) => {
+        const p = Math.max(Math.abs(l.min), Math.abs(l.max));
+        if (p > peaks[i]) peaks[i] = p;
+        let tot = 0;
+        let edge = 0;
+        for (let k = 0; k < l.counts.length; k += 1) {
+          tot += l.counts[k];
+          if (k === 0 || k === l.counts.length - 1) edge += l.counts[k];
+        }
+        const share = tot > 0 ? edge / tot : 0;
+        if (share > edgeMax[i]) edgeMax[i] = share;
+      });
+    }
+    const ranges = hist.header.layers.map((l) => l.max);
+    const allSame = ranges.every((r) => r === ranges[0]);
+    const rangeDesc = allSame ? `±${ranges[0]}` : `[${ranges.map((r) => `±${r}`).join(', ')}]`;
+    const worst = edgeMax.reduce((a, e, i) => (e > a.e ? { e, i } : a), { e: 0, i: 0 });
+    const summary = `各层峰值 ${peaks.map((p) => p.toFixed(2)).join('/')}`
+      + `，最大边缘堆积 ${(worst.e * 100).toFixed(2)}%（L${worst.i}）`;
+    if (worst.e > 0.05) {
+      console.log(`  WARN  分箱范围 ${rangeDesc} 截断明显：${summary}；`
+        + '换更大的 --hist-range（可按层给，如 3,3,3,6）可以改善');
+    } else {
+      console.log(`  INFO  分箱范围 ${rangeDesc} 无实质截断：${summary}`);
+    }
+  }
 
   const actBytes = await fetchBytes(`${base}/activations.bin`);
   const act = new RecordSource(`${base}/activations.bin`, {

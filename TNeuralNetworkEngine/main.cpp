@@ -84,7 +84,8 @@ struct Options
     bool hold = true;
     bool serveOnly = false;
     uint32_t probes = 16;
-    double histRange = 2.0;
+    // 直方图固定分箱范围，一个值＝所有层，或按层各一个（逗号分隔）
+    std::vector<double> histRanges{3.0};
 };
 
 void PrintUsage()
@@ -98,7 +99,8 @@ void PrintUsage()
     printf("  --web DIR        前端静态文件目录 （默认 ../web）\n");
     printf("  --port N         HTTP 端口；0 表示自动选空闲端口 （默认 0）\n");
     printf("  --probes N       激活快照使用的固定样本数 （默认 16，0 表示关闭）\n");
-    printf("  --hist-range R   直方图固定分箱范围 ±R （默认 2）\n");
+    printf("  --hist-range R   直方图固定分箱范围 ±R；一个值用于所有层，"
+           "或用逗号按层各给一个（如 3,3,3,6，默认 3）\n");
     printf("  --no-serve       不启动 HTTP 服务\n");
     printf("  --serve-only     不训练，只把 runs/ 用 HTTP 服务起来（回看历史 run）\n");
     printf("  --no-hold        训练结束后立即退出，不等回车\n");
@@ -228,7 +230,31 @@ bool ParseArgs(int argc, char **argv, Options &opt)
             {
                 return false;
             }
-            opt.histRange = std::strtod(v, nullptr);
+            // 一个值 = 所有层；逗号分隔 = 按层各一个
+            const std::string spec = v;
+            std::vector<double> ranges;
+            size_t start = 0;
+            while (start <= spec.size())
+            {
+                const size_t comma = spec.find(',', start);
+                const size_t len = (comma == std::string::npos) ? std::string::npos : comma - start;
+                const std::string part = spec.substr(start, len);
+                char *end = nullptr;
+                const double value = std::strtod(part.c_str(), &end);
+                if (part.empty() || end == part.c_str() || *end != '\0' || !(value > 0.0))
+                {
+                    printf("--hist-range 取值非法: %s（应为正数，或用逗号分隔每层一个）\n",
+                           spec.c_str());
+                    return false;
+                }
+                ranges.push_back(value);
+                if (comma == std::string::npos)
+                {
+                    break;
+                }
+                start = comma + 1;
+            }
+            opt.histRanges = ranges;
         }
         else
         {
@@ -388,7 +414,14 @@ int main(int argc, char **argv)
     meta.totalSteps = opt.steps;
 
     LoggingPolicy policy;
-    policy.histRange = opt.histRange;
+    // 一个值=所有层，填满=按层；其他个数视为写错，早失败好过默默取错范围
+    if (opt.histRanges.size() != 1 && opt.histRanges.size() != meta.layers.size())
+    {
+        printf("--hist-range 给了 %zu 个值，但网络有 %zu 层；要么给 1 个（所有层通用），要么给 %zu 个\n",
+               opt.histRanges.size(), meta.layers.size(), meta.layers.size());
+        return 2;
+    }
+    policy.histRanges = opt.histRanges;
 
     Recorder recorder;
     const bool recording =
@@ -406,17 +439,17 @@ int main(int argc, char **argv)
     DashboardServer server;
     if (opt.serve)
     {
-        if (server.Start(opt.outRoot, opt.webRoot, opt.port, url))
+        if (!server.Start(opt.outRoot, opt.webRoot, opt.port, url))
+        {
+            printf("HTTP 服务启动失败（端口被占用？），训练继续。\n");
+        }
+        else
         {
             printf("仪表盘: %s\n", url.c_str());
             if (recording)
             {
                 recorder.SetUrl(url);
             }
-        }
-        else
-        {
-            printf("HTTP 服务启动失败（端口被占用？），训练继续。\n");
         }
     }
 

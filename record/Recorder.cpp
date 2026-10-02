@@ -288,12 +288,13 @@ bool Recorder::BeginRun(const std::string &runsRoot, const RunMeta &meta,
     WriteU32(m_histograms, layerCount);
     WriteU32(m_histograms, bins);
     WriteU32(m_histograms, 0);
-    for (const auto &layer : meta.layers)
+    for (size_t i = 0; i < meta.layers.size(); ++i)
     {
-        WriteU32(m_histograms, layer.input);
-        WriteU32(m_histograms, layer.output);
-        WriteF32(m_histograms, static_cast<float>(-m_policy.histRange));
-        WriteF32(m_histograms, static_cast<float>(m_policy.histRange));
+        const double range = m_policy.RangeFor(i);
+        WriteU32(m_histograms, meta.layers[i].input);
+        WriteU32(m_histograms, meta.layers[i].output);
+        WriteF32(m_histograms, static_cast<float>(-range));
+        WriteF32(m_histograms, static_cast<float>(range));
     }
 
     // activations.bin 头：16 + 4 * 层数 字节
@@ -349,9 +350,6 @@ void Recorder::LogHistograms(uint32_t step, const std::vector<TnLayer *> &layers
         return;
     }
     const uint32_t bins = m_policy.histBins;
-    const double lo = -m_policy.histRange;
-    const double hi = m_policy.histRange;
-    const double span = (hi > lo) ? (hi - lo) : 1.0;
     const size_t layerCount = layers.size();
 
     if (m_histCounts.size() != layerCount * bins)
@@ -364,6 +362,11 @@ void Recorder::LogHistograms(uint32_t step, const std::vector<TnLayer *> &layers
 
     for (size_t l = 0; l < layerCount; ++l)
     {
+        // 每层可以有自己的固定范围：小 fan-in 的输出层权重量级和首层差很多
+        const double range = m_policy.RangeFor(l);
+        const double lo = -range;
+        const double span = (range > 0.0) ? (2.0 * range) : 1.0;
+
         std::fill(m_histCounts.begin() + l * bins, m_histCounts.begin() + (l + 1) * bins, 0.0f);
         const TnLayer &layer = *layers[l];
         double mn = 0.0;
@@ -611,7 +614,8 @@ void Recorder::WriteMeta(const RunMeta &meta, const std::vector<ProbeRef> &probe
          ", \"histBins\": " + std::to_string(m_policy.histBins) + ", \"histRange\": [";
     for (size_t i = 0; i < meta.layers.size(); ++i)
     {
-        j += "[" + FmtNumber(-m_policy.histRange) + ", " + FmtNumber(m_policy.histRange) + "]";
+        const double range = m_policy.RangeFor(i);
+        j += "[" + FmtNumber(-range) + ", " + FmtNumber(range) + "]";
         if (i + 1 < meta.layers.size())
         {
             j += ", ";

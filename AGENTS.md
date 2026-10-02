@@ -17,7 +17,7 @@ cd build; .\NumDistinguish.exe                                                 #
 ```
 
 - `main.cpp` 以相对路径打开 `resources/test.db`，所以工作目录必须是 `build/`。该库（约 287MB）不在 git 中，新克隆需自备，缺失直接 `return 1`。
-- 常用参数：`--exp NAME`、`--seed N`、`--steps N`、`--probes N`、`--port N`、`--serve-only`（只回看 runs/，不训练）、`--no-hold`、`--help`。
+- 常用参数：`--exp NAME`、`--seed N`、`--steps N`、`--probes N`、`--hist-range R`（一个值=所有层，或 `3,3,3,6` 按层给）、`--port N`、`--serve-only`（只回看 runs/，不训练）、`--no-hold`、`--help`。
 - 21000 步约 2 分钟（Release，本机），默认每 100 步打印一行；别因为打印稀疏就误判成卡死。
 
 ## 代码约定

@@ -23,11 +23,11 @@
 - 训练 21000 步约 2 分钟（Release），最终测试集准确率 94.12%。
 - `tools/proto-check.mjs` 23 项、`tools/charts-check.mjs` 13 项全部通过。
 
-运行方式（必须在 `build/` 下，见 `AGENTS.md`）：
+运行方式（三条命令的工作目录都是 `build/`，见 `AGENTS.md`）：
 
 ```powershell
-cd build; .\NumDistinguish.exe --exp demo --steps 21000      # 训练 + 仪表盘
-cd build; .\NumDistinguish.exe --serve-only --port 5108      # 不训练，只回看 runs/
+.\NumDistinguish.exe --exp demo --steps 21000                 # 训练 + 仪表盘
+.\NumDistinguish.exe --serve-only --port 5108                 # 不训练，只回看 runs/
 node ..\tools\proto-check.mjs http://127.0.0.1:5108 <runName> ..\runs
 ```
 
@@ -60,23 +60,35 @@ node ..\tools\proto-check.mjs http://127.0.0.1:5108 <runName> ..\runs
 
 ## 3. 目录布局
 
+仓库根就是工作区根 `D:\projects\TNeuralNetwork\`；模型本体、遥测写入、Web 功能分在三个目录里。
+
 ```
-TNeuralNetworkEngine/
-  runs/
-    <expName>_<YYYYmmdd-HHMMSS>/     # 目录名带时间戳，避免同名 run 互相覆盖
-      meta.json                      # 一次性，原子替换写入
-      status.json                    # 持续更新，原子替换写入
-      scalars.jsonl                  # 追加，文本
-      histograms.bin                 # 追加，定长记录
-      activations.bin                # 追加，定长记录
-      probe_inputs.bin               # 一次性，参与激活采样的样本像素
-  web/
-    index.html  app.js  gl.js  style.css
+D:\projects\TNeuralNetwork\            # 仓库根
+  TNeuralNetworkEngine/                # 模型本体与入口
+    main.cpp  NumDistinguish.*  Sample.*  Shuffle.*  TnRandom.*
+    sqlite3/                           # 内嵌 SQLite 合并源，勿改
+  record/                              # 遥测写入端（见 record/README.md）
+    Recorder.h  Recorder.cpp
+  web/                                 # 整个 Web 功能（见 web/README.md）
+    index.html  style.css  app.js  protocol.js  charts.js  gl.js  package.json
+    DashboardServer.h  DashboardServer.cpp
+    httplib/                           # cpp-httplib v0.58.0 + LICENSE
+  tools/                               # 校验脚本
+    proto-check.mjs  charts-check.mjs
   docs/
-    telemetry-plan.md                # 本文件
+    telemetry-plan.md                  # 本文件
+  build/                               # 构建树（git 忽略；含 resources/test.db）
+  runs/                                # 训练输出（git 忽略）
+    <expName>_<YYYYmmdd-HHMMSS>/       # 目录名带时间戳，避免同名 run 互相覆盖
+      meta.json                        # 一次性，原子替换写入
+      status.json                      # 持续更新，原子替换写入
+      scalars.jsonl                    # 追加，文本
+      histograms.bin                   # 追加，定长记录
+      activations.bin                  # 追加，定长记录
+      probe_inputs.bin                 # 一次性，参与激活采样的样本像素
 ```
 
-`runs/` 已加入 `.gitignore`。
+`runs/` 与 `build/` 都已加入 `.gitignore`。
 
 ## 4. 文件格式
 
@@ -105,7 +117,17 @@ TNeuralNetworkEngine/
 | `probes` | `[{index, label, source}]`，数组顺序即 `activations.bin` 内的 probe 顺序 |
 | `scalarFields` | 每个标量的 `{key, label, unit, logScale}`，让前端不写死字段名 |
 
-`histRange` **必须在这里定死，全 run 不变**（原因见 §9 坑 5），默认取 `[-2, 2]`。
+`histRange` 是**每层各自**的固定范围，**必须在这里定死、全 run 不变**（原因见 §9 坑 5）。
+默认 ±3，来由是一次 25000 步实测（用每层 counts 估分位数）：四层分布的 99% 质量都落在
+±1.1 ~ ±2.0 之内，而全 run 峰值是 1.69 / 1.70 / 2.20 / 4.47 —— ±3 让前三层的峰值完全不溢出、
+核心仍占 64 格中的 24~42 格；宽松到 ±5 只会把核心压到 14~25 格，白白损失纵向分辨率。
+`--hist-range` 可以只给一个数（所有层通用）或按层给（如 `3,3,3,6`）。
+
+**"截断"要按质量占比判断，不能按"有没有权重越界"**：实测 ±3 下 L0/L1/L2 零越界，
+L3 只有 3/170 个权重越界，落在边缘 bin 的也只有 1.76% 的质量 —— 对热力图形状没有实质影响。
+放宽到 ±5 能让这 3 个离群值离开边缘 bin，但会把 L3 的核心从 42 格压到 25 格，不值得。
+所以判定阈值取"边缘 bin 质量 > 5%"才算截断明显，其余只在 `tools/proto-check.mjs`
+的 INFO 行和面板提示里给出实际峰值。
 
 ### 4.3 `status.json`
 
@@ -189,7 +211,7 @@ TNeuralNetworkEngine/
 
 ### 5.1 访问器（前置条件）
 
-`TnLayer` 的 `matrix` / `bias` 是 `protected`，`preActiveValues` 是 `private`，**都没有访问器**，现在根本读不到权重。需要新增只读访问器：
+`TnLayer`（`TNeuralNetworkEngine/Sample.h`）的 `matrix` / `bias` 是 `protected`，`preActiveValues` 是 `private`，**都没有访问器**，现在根本读不到权重。需要新增只读访问器：
 
 - `const vector<vector<double>> &Matrix() const`
 - `const vector<double> &Bias() const`
@@ -197,11 +219,11 @@ TNeuralNetworkEngine/
 
 ### 5.2 随机种子可复现
 
-- `TnLayer` 构造函数里用 `rand()` + `srand(time(0))`（`Sample.cpp`），`Shuffle` 构造函数里用 `chrono::system_clock::now()` 做种子（`Shuffle.cpp`）。**两处都不可复现**，只换其中一处没有意义。
+- `TnLayer` 构造函数里用 `rand()` + `srand(time(0))`（`TNeuralNetworkEngine/Sample.cpp`），`Shuffle` 构造函数里用 `chrono::system_clock::now()` 做种子（`TNeuralNetworkEngine/Shuffle.cpp`）。**两处都不可复现**，只换其中一处没有意义。
 - 统一改用一个由外部传入的 `std::mt19937`，seed 由命令行/配置提供，并写进 `meta.json`。
 - 否则页面上的多 run 对比毫无意义。
 
-### 5.3 `Recorder`（新类，`Recorder.h/.cpp`）
+### 5.3 `Recorder`（新类，`record/Recorder.h/.cpp`）
 
 `BeginRun(meta)` / `LogScalars(...)` / `LogHistograms(...)` / `LogActivations(...)` / `EndRun(state)`，内部持有 `FILE*`、预分配的直方图缓冲、待写缓冲。要点：
 
@@ -226,7 +248,7 @@ TNeuralNetworkEngine/
 
 ### 5.6 `CMakeLists.txt`
 
-新增 `Recorder.cpp`、`DashboardServer.cpp`，并 `target_link_libraries(NumDistinguish PRIVATE ws2_32)`。
+新增 `record/Recorder.cpp`、`web/DashboardServer.cpp`，把 `TNeuralNetworkEngine/`、`record/`、`web/` 加进 include 路径，并 `target_link_libraries(NumDistinguish PRIVATE ws2_32)`。
 
 > 当前工具链是 **GNU 风格的 `clang++` 驱动**（不是 `clang-cl`），因此**不要依赖 `#pragma comment(lib, ...)`**，必须在 CMake 里显式链接。源码里 `<winsock2.h>` 必须早于 `<windows.h>`，并定义 `WIN32_LEAN_AND_MEAN` / `NOMINMAX`，别忘了 `WSAStartup`。
 

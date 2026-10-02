@@ -25,6 +25,8 @@ const state = {
   act: null,
   probeInputs: null,
   probeIndex: 0,
+  histPeak: [],
+  histEdge: [],
   charts: [],
   heatmap: null,
   timer: null,
@@ -127,6 +129,58 @@ function setupHeatmap(meta) {
     layerCount,
     totalRecords: Math.max(1, totalRecords),
   });
+  state.histPeak = new Array(layerCount).fill(0);
+  state.histEdge = new Array(layerCount).fill(0);
+}
+
+// 分箱范围是每层固定死在文件头里的；超出范围的值会被并进边缘 bin。
+// 边缘 bin 里同时装着"合法尾巴"和"被截断的极值"，所以不能只看"有没有权重越界"——
+// 这里同时跟踪每层 |w| 峰值和边缘 bin 的质量占比，只有后者明显时才当成真问题。
+const EDGE_MATERIAL = 0.05;
+
+function updateHistHint() {
+  const header = state.hist && state.hist.header;
+  if (!header || !state.hist.records.length) return;
+  const peaks = state.histPeak || [];
+  const edges = state.histEdge || [];
+  const node = el('histHint');
+  const base = `${state.hist.records.length} 条记录`;
+
+  const worst = edges.reduce((a, e, i) => (e > a.e ? { e, i } : a), { e: 0, i: 0 });
+  const over = header.layers
+    .map((l, i) => ({ i, p: peaks[i] || 0, range: l.max }))
+    .filter((x) => x.p > x.range + 1e-6);
+
+  if (worst.e > EDGE_MATERIAL) {
+    node.textContent = `${base} · ⚠ 截断明显：L${worst.i} 边缘 bin 占 ${(worst.e * 100).toFixed(1)}%，建议加大 --hist-range`;
+    node.className = 'hint warn';
+  } else if (over.length) {
+    const desc = over.map((x) => `L${x.i} 峰值 ${x.p.toFixed(2)}>±${x.range}`).join('，');
+    node.textContent = `${base} · 轻微截断（${desc}；边缘 bin 占 ${(worst.e * 100).toFixed(1)}%，可忽略）`;
+    node.className = 'hint';
+  } else {
+    const top = peaks.reduce((a, p, i) => (p > a.p ? { p, i } : a), { p: 0, i: 0 });
+    node.textContent = `${base} · 未截断（最大 |w| = L${top.i} ${top.p.toFixed(2)}）`;
+    node.className = 'hint';
+  }
+}
+
+// 把新记录推给热力图，同时更新每层的 |w| 峰值与边缘 bin 堆积率
+function pushHistRecords(from) {
+  if (!state.heatmap) return;
+  for (let i = from; i < state.hist.records.length; i += 1) {
+    const rec = state.hist.records[i];
+    state.heatmap.pushRecord(rec);
+    rec.layers.forEach((l, li) => {
+      const p = Math.max(Math.abs(l.min), Math.abs(l.max));
+      if (!(state.histPeak[li] >= p)) state.histPeak[li] = p;
+      let tot = 0;
+      for (let k = 0; k < l.counts.length; k += 1) tot += l.counts[k];
+      const edge = tot > 0 ? (l.counts[0] + l.counts[l.counts.length - 1]) / tot : 0;
+      if (!(state.histEdge[li] >= edge)) state.histEdge[li] = edge;
+    });
+  }
+  updateHistHint();
 }
 
 function setupProbeSelector(meta) {
@@ -152,6 +206,8 @@ function onReset() {
     ch.yMax = null;
   }
   if (state.heatmap) state.heatmap.reset();
+  state.histPeak = [];
+  state.histEdge = [];
   el('warn').textContent = '检测到文件被截断或换 run，已重置';
 }
 
@@ -238,11 +294,7 @@ async function pollAll() {
     if (a.reset || b.reset || c.reset) onReset();
 
     if (b.added > 0 && state.heatmap) {
-      const start = state.hist.records.length - b.added;
-      for (let i = start; i < state.hist.records.length; i += 1) {
-        state.heatmap.pushRecord(state.hist.records[i]);
-      }
-      el('histHint').textContent = `${state.hist.records.length} 条记录`;
+      pushHistRecords(state.hist.records.length - b.added);
     }
 
     if (a.added > 0) {
@@ -293,8 +345,7 @@ async function loadRun(name) {
 
   await Promise.all([state.scalars.poll(), state.hist.open(), state.act.open()]);
   if (state.hist.records.length && state.heatmap) {
-    for (const rec of state.hist.records) state.heatmap.pushRecord(rec);
-    el('histHint').textContent = `${state.hist.records.length} 条记录`;
+    pushHistRecords(0);
   }
 
   // probe_inputs.bin 是一次性写入的，取一次即可

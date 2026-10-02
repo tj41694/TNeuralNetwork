@@ -13,11 +13,26 @@ struct LoggingPolicy
     uint32_t histEvery = 50;
     uint32_t actEvery = 200;
     uint32_t histBins = 64;
-    // 直方图固定分箱范围 ±histRange。必须全 run 不变，否则热力图会横向漂移.
-    double histRange = 2.0;
+    // 直方图固定分箱范围 ±histRanges[l]，必须全 run 不变，否则热力图会横向漂移。
+    // 只填一个值时对所有层生效；要按层区分就填满层数个。
+    //
+    // 默认 3 而不是 2 的来由（实测一次 25000 步的 run，用每层 counts 估分位数）：
+    // 四层分布的 99% 质量都落在 ±1.1 ~ ±2.0 之内，而峰值分别是 1.69 / 1.70 / 2.20 / 4.47。
+    // 取 ±3 让前三层的峰值完全不溢出、核心仍占 64 格中的 24~42 格；
+    // 放宽到 ±5 只会把核心压到 14~25 格，白白损失分辨率。
+    std::vector<double> histRanges{3.0};
     uint32_t heartbeatMs = 2000;
     uint32_t flushMs = 100;
     uint32_t printEvery = 100;
+
+    double RangeFor(size_t layer) const
+    {
+        if (histRanges.empty())
+        {
+            return 3.0;
+        }
+        return histRanges[layer < histRanges.size() ? layer : histRanges.size() - 1];
+    }
 };
 
 struct LayerDesc
