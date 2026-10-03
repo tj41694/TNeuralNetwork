@@ -24,6 +24,17 @@ int64_t WallMs()
     return static_cast<int64_t>(
         duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
 }
+
+// 一组层的整体 L2 范数：sqrt(Σ ‖layer‖²)，梯度与权重的范数统计共用.
+double TotalNorm(const vector<TnLayer *> &layers)
+{
+    double sum = 0;
+    for (const auto *layer : layers)
+    {
+        sum += layer->NormSquared();
+    }
+    return sqrt(sum);
+}
 } // namespace
 
 void Sigmoid(TnVector &input)
@@ -111,20 +122,14 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, const Trainin
 
         // 必须在 UpdateWeights 之前取：那时梯度层还是"累加后的原始梯度"，
         // 一旦 UpdateWeights 跑过就被按 lr/batchSize 缩放并相减了.
-        double gradNorm = 0;
-        for (const auto *gradient : gradients)
-            gradNorm += gradient->NormSquared();
-        gradNorm = sqrt(gradNorm);
+        double gradNorm = TotalNorm(gradients);
 
         const double lr = (step >= options.lrDecayFromStep) ? options.lrLow : options.lrHigh;
         UpdateWeights(gradients, batchs.size(), lr);
         for (auto *gradient : gradients)
             delete gradient;
 
-        double weightNorm = 0;
-        for (const auto *layer : m_layers)
-            weightNorm += layer->NormSquared();
-        weightNorm = sqrt(weightNorm);
+        double weightNorm = TotalNorm(m_layers);
 
         const size_t effectiveBatch = batchs.empty() ? static_cast<size_t>(batchSize) : batchs.size();
         samplesSeen += effectiveBatch;
