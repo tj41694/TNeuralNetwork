@@ -37,6 +37,9 @@ class TnLayer
     const vector<double> &Bias() const;
     const TnVector &PreActiveValues() const;
 
+    // 权重矩阵与偏置的平方和（Frobenius 范数的平方），用于遥测统计梯度/权重的范数.
+    double NormSquared() const;
+
   protected:
     vector<vector<double>> matrix;
     vector<double> bias;

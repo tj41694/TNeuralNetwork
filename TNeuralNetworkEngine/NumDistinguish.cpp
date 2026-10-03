@@ -1,6 +1,7 @@
 #include "NumDistinguish.h"
 #include "Sample.h"
 #include "Shuffle.h"
+#include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <cmath>
@@ -10,23 +11,6 @@
 
 namespace
 {
-double NormSquared(const TnLayer &layer)
-{
-    double sum = 0;
-    for (const auto &row : layer.Matrix())
-    {
-        for (double v : row)
-        {
-            sum += v * v;
-        }
-    }
-    for (double v : layer.Bias())
-    {
-        sum += v * v;
-    }
-    return sum;
-}
-
 uint64_t SteadyMs()
 {
     using namespace std::chrono;
@@ -55,8 +39,7 @@ void ReLU(TnVector &input)
 {
     for (auto &val : input)
     {
-        if (val < 0)
-            val = 0;
+        val = std::max<double>(val, 0);
     }
 }
 void DerivReLU(const TnVector &preActiveValues, TnVector &vec)
@@ -85,7 +68,7 @@ void DerivSoftMax(const TnVector &preActiveValues, TnVector &vec)
 {
 }
 
-void DigitalDistinguish::PushLayer(unsigned int input, unsigned int output,
+void DigitalDistinguish::PushLayer(int input, int output,
                                    ActiveFuncPtr activeFunc, DerivFuncPtr derivFunc)
 {
     TnLayer *layer = new TnLayer(output, input, activeFunc, derivFunc);
@@ -114,6 +97,7 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, const Trainin
         shuff.GetShuffledData(samples, batchSize, batchs);
         double sampleTotalVal = 0;
         vector<TnLayer *> gradients;
+        gradients.reserve(m_layers.size());
         for (const auto &layer : m_layers)
             gradients.emplace_back(new TnLayer(*layer));
         for (Sample *batch : batchs)
@@ -129,17 +113,17 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, const Trainin
         // 一旦 UpdateWeights 跑过就被按 lr/batchSize 缩放并相减了.
         double gradNorm = 0;
         for (const auto *gradient : gradients)
-            gradNorm += NormSquared(*gradient);
+            gradNorm += gradient->NormSquared();
         gradNorm = sqrt(gradNorm);
 
         const double lr = (step >= options.lrDecayFromStep) ? options.lrLow : options.lrHigh;
         UpdateWeights(gradients, batchs.size(), lr);
-        for (auto gradient : gradients)
+        for (auto *gradient : gradients)
             delete gradient;
 
         double weightNorm = 0;
         for (const auto *layer : m_layers)
-            weightNorm += NormSquared(*layer);
+            weightNorm += layer->NormSquared();
         weightNorm = sqrt(weightNorm);
 
         const size_t effectiveBatch = batchs.empty() ? static_cast<size_t>(batchSize) : batchs.size();
@@ -227,7 +211,7 @@ void DigitalDistinguish::Validate(const vector<Sample *> &data)
     // std::filesystem::create_directories(errorDir);
     int corectCount = 0;
     int index = 0;
-    for (auto s : data)
+    for (auto *s : data)
     {
         int num = Distinguish(*s);
         if (num == s->m_realValue)
@@ -240,7 +224,7 @@ void DigitalDistinguish::Validate(const vector<Sample *> &data)
         }
         index++;
     }
-    double corectRate = 100.0 * (double) corectCount / data.size();
+    double corectRate = 100.0 * (double) corectCount / (double)data.size();
     printf("accuracy: %.3f%%\n", corectRate);
 }
 
@@ -251,7 +235,7 @@ void DigitalDistinguish::Backward(const Sample &input, const TnVector &output,
                                   vector<TnLayer *> &gradientLayers) const
 {
     assert(gradientLayers.size() == m_layers.size());
-    int layerCt = m_layers.size();
+    int layerCt = (int)m_layers.size();
 
     gradientLayers.back()->Values() = output;
 
@@ -272,7 +256,7 @@ void DigitalDistinguish::Backward(const Sample &input, const TnVector &output,
 void DigitalDistinguish::UpdateWeights(const vector<TnLayer *> &gradients, size_t batchSize,
                                        double stepRate)
 {
-    double ratio = stepRate / batchSize;
+    double ratio = stepRate / (double)batchSize;
     for (size_t i = 0; i < m_layers.size(); i++)
     {
         *gradients[i] *= ratio;
@@ -282,7 +266,7 @@ void DigitalDistinguish::UpdateWeights(const vector<TnLayer *> &gradients, size_
 
 DigitalDistinguish::~DigitalDistinguish()
 {
-    for (auto layer : m_layers)
+    for (auto *layer : m_layers)
     {
         delete layer;
     }

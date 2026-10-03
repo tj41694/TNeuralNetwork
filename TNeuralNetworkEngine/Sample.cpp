@@ -218,6 +218,23 @@ const TnVector &TnLayer::PreActiveValues() const
     return preActiveValues;
 }
 
+double TnLayer::NormSquared() const
+{
+    double sum = 0;
+    for (const auto &row : matrix)
+    {
+        for (double v : row)
+        {
+            sum += v * v;
+        }
+    }
+    for (double v : bias)
+    {
+        sum += v * v;
+    }
+    return sum;
+}
+
 void TnLayer::CalcGradient(const TnVector &prevLyActiveValues, const TnLayer &curLayer,
                            TnVector *preGradients)
 {

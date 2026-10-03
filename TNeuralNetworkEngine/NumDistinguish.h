@@ -6,13 +6,13 @@
 #include <vector>
 using namespace std;
 
-void Sigmoid(TnVector &vec);
+void Sigmoid(TnVector &input);
 void DerivSigmoid(const TnVector &preActiveValues, TnVector &vec);
 
-void ReLU(TnVector &vec);
+void ReLU(TnVector &input);
 void DerivReLU(const TnVector &preActiveValues, TnVector &vec);
 
-void SoftMax(TnVector &vec);
+void SoftMax(TnVector &input);
 void DerivSoftMax(const TnVector &preActiveValues, TnVector &vec);
 
 // 一次训练的全部可调项。默认值与重构前的硬编码行为完全一致.
@@ -36,9 +36,9 @@ class DigitalDistinguish
   public:
     ~DigitalDistinguish();
 
-    void PushLayer(unsigned int input, unsigned int output, ActiveFuncPtr activeFunc,
+    void PushLayer(int input, int output, ActiveFuncPtr activeFunc,
                    DerivFuncPtr derivFunc);
-    void Training(const vector<Sample *> &data, const TrainingOptions &options);
+    void Training(const vector<Sample *> &samples, const TrainingOptions &options);
     int Distinguish(const Sample &sample);
     void Validate(const vector<Sample *> &data);
 
