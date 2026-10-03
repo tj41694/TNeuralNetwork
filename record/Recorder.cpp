@@ -386,10 +386,7 @@ void Recorder::LogHistograms(uint32_t step, const std::vector<TnLayer *> &layers
                 mx = std::max(mx, v);
             }
             int idx = static_cast<int>(std::floor((v - lo) / span * static_cast<double>(bins)));
-            if (idx < 0)
-            {
-                idx = 0;
-            }
+            idx = std::max(idx, 0);
             if (idx >= static_cast<int>(bins))
             {
                 idx = static_cast<int>(bins) - 1;

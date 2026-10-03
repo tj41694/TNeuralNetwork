@@ -8,6 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_executable(NumDistinguish
     TNeuralNetworkEngine/main.cpp
+    TNeuralNetworkEngine/CommandLine.cpp
     TNeuralNetworkEngine/NumDistinguish.cpp
     TNeuralNetworkEngine/Sample.cpp
     TNeuralNetworkEngine/Shuffle.cpp

@@ -2,3 +2,6 @@ CompileFlags:
   Add:
     - "-std=c++17"
     - "-Wextra"
+InlayHints:
+  ParameterNames: false
+  

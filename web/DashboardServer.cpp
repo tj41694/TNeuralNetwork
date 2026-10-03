@@ -79,7 +79,7 @@ bool IsSafeRunName(const std::string &name)
     for (char c : name)
     {
         const unsigned char u = static_cast<unsigned char>(c);
-        if (!(std::isalnum(u) || c == '_' || c == '-' || c == '.'))
+        if ((isalnum(u) == 0) && c != '_' && c != '-' && c != '.')
         {
             return false;
         }

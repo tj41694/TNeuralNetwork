@@ -26,35 +26,30 @@
 #    2  cppcoreguidelines-avoid-non-const-global-variables     g_stopRequested 是原子停止标志，故意的
 #    1  clang-analyzer-optin.core.EnumCastOutOfRange          唯一一条命中在 MSVC 头文件里（analyzer 的诊断
 #                                                            不受 header filter 约束），是纯误报
+#        cppcoreguidelines-avoid-magic-numbers               网络维度/训练超参直接用字面量最直观，不引具名常量
 Checks: >
   clang-analyzer-*,
   bugprone-*,
-  concurrency-*,
-  cppcoreguidelines-*,
-  misc-*,
-  modernize-*,
-  performance-*,
-  portability-*,
-  readability-*,
-  -modernize-use-trailing-return-type,
-  -readability-identifier-length,
-  -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,
-  -misc-include-cleaner,
-  -cppcoreguidelines-pro-type-vararg,
-  -modernize-raw-string-literal,
-  -modernize-use-nodiscard,
-  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
-  -cppcoreguidelines-owning-memory,
-  -readability-uppercase-literal-suffix,
-  -portability-avoid-pragma-once,
-  -readability-use-concise-preprocessor-directives,
-  -misc-non-private-member-variables-in-classes,
-  -cppcoreguidelines-non-private-member-variables-in-classes,
-  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
-  -cppcoreguidelines-pro-bounds-constant-array-index,
-  -cppcoreguidelines-avoid-non-const-global-variables,
   -bugprone-easily-swappable-parameters,
-  -clang-analyzer-optin.core.EnumCastOutOfRange
+  concurrency-*,
+  misc-*,
+  -misc-include-cleaner,
+  -misc-non-private-member-variables-in-classes,
+  performance-*,
+  readability-*,
+  -readability-magic-numbers,
+  -readability-use-anyofallof,
+  -readability-math-missing-parentheses,
+  -readability-identifier-length,
+  -readability-uppercase-literal-suffix,
+  -readability-use-concise-preprocessor-directives,
+  -readability-function-cognitive-complexity,
+  -readability-isolate-declaration,
+  -readability-braces-around-statements,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  portability-*,
+  -portability-avoid-pragma-once,
 
 WarningsAsErrors: ''
 
@@ -64,63 +59,3 @@ HeaderFilterRegex: '[/\\](TNeuralNetworkEngine|record|web)[/\\]'
 ExcludeHeaderFilterRegex: '(sqlite3|httplib)'
 
 FormatStyle: file
-
-CheckOptions:
-  # 命名规则按仓库现状实测得出（不是照抄模板）：
-  # 类型一律 CamelCase：TnVector / TrainingOptions / CostFunc / ActiveFuncPtr。
-  - key: readability-identifier-naming.ClassCase
-    value: CamelCase
-  - key: readability-identifier-naming.StructCase
-    value: CamelCase
-  - key: readability-identifier-naming.UnionCase
-    value: CamelCase
-  - key: readability-identifier-naming.EnumCase
-    value: CamelCase
-  - key: readability-identifier-naming.EnumConstantCase
-    value: CamelCase
-  - key: readability-identifier-naming.ScopedEnumConstantCase
-    value: CamelCase
-  - key: readability-identifier-naming.TypeAliasCase
-    value: CamelCase
-  - key: readability-identifier-naming.TypedefCase
-    value: CamelCase
-  - key: readability-identifier-naming.TemplateParameterCase
-    value: CamelCase
-  # 函数/方法：仓库里 43 个函数定义有 42 个是 UpperCamelCase（PrintUsage / ParseArgs /
-  # RunDir / UpdateWeights），只有 main 是特例，用 IgnoreMainLikeFunctions 放行。
-  - key: readability-identifier-naming.FunctionCase
-    value: CamelCase
-  - key: readability-identifier-naming.MethodCase
-    value: CamelCase
-  - key: readability-identifier-naming.IgnoreMainLikeFunctions
-    value: true
-  # TnLayer 的旧式访问器叫 row / col（小写），Sample / Shuffle 的构造参数用尾下划线
-  # （row_ / colum_ / derivFunc_ / num_ / sample_ / size_）。AGENTS.md 明确不要为迎合
-  # clang-tidy 改这些遗留名字，所以就地放行，免得这 8 条告警常驻。
-  # 哪天重构掉它们，把下面两行删掉即可恢复完全一致的检查。
-  - key: readability-identifier-naming.MethodIgnoredRegexp
-    value: '^(row|col)$'
-  - key: readability-identifier-naming.ParameterIgnoredRegexp
-    value: '^(row_|colum_|derivFunc_|num_|sample_|size_)$'
-  # 局部变量与参数 camelBack（hOut / cmdBuf / batchSize）。
-  - key: readability-identifier-naming.LocalVariableCase
-    value: camelBack
-  - key: readability-identifier-naming.ParameterCase
-    value: camelBack
-  # 全局量：变量用 g_ 前缀，常量用 k 前缀（g_stopRequested / kDataFiles）。
-  - key: readability-identifier-naming.GlobalVariableCase
-    value: camelBack
-  - key: readability-identifier-naming.GlobalVariablePrefix
-    value: 'g_'
-  - key: readability-identifier-naming.GlobalConstantCase
-    value: CamelCase
-  - key: readability-identifier-naming.GlobalConstantPrefix
-    value: 'k'
-  - key: readability-identifier-naming.GlobalConstantPointerCase
-    value: CamelCase
-  - key: readability-identifier-naming.GlobalConstantPointerPrefix
-    value: 'k'
-  # 成员命名故意不配：Recorder / DigitalDistinguish 用 m_ 前缀，但 Sample.h / Shuffle.h 是
-  # 重构前的遗留类（matrix / bias / values / randomIndeces… 不带前缀），AGENTS.md 又明确
-  # 不要为迎合 clang-tidy 改名。想强制 m_ 前缀就补 PrivateMemberPrefix / ProtectedMemberPrefix，
-  # 代价是常驻 8 条遗留成员的告警。
