@@ -15,4 +15,7 @@ std::mt19937 &RandomEngine();
 
 double RandomUniform(double low, double high);
 
+// 正态分布，用于 He/Kaiming 权重初始化.
+double RandomNormal(double mean, double stddev);
+
 void RandomShuffle(std::vector<size_t> &vec);

@@ -22,7 +22,7 @@ struct TrainingOptions
     uint32_t totalSteps = 25000;
     double lrHigh = 0.1;
     double lrLow = 0.05;
-    uint32_t lrDecayFromStep = 20000;
+    uint32_t lrDecayFromStep = 17500;
     // 为空则不做任何遥测记录
     Recorder *recorder = nullptr;
     // 参与激活快照的固定样本；为空则不记录激活

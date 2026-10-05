@@ -56,6 +56,12 @@ double RandomUniform(double low, double high)
     return dist(RandomEngine());
 }
 
+double RandomNormal(double mean, double stddev)
+{
+    std::normal_distribution<double> dist(mean, stddev);
+    return dist(RandomEngine());
+}
+
 void RandomShuffle(std::vector<size_t> &vec)
 {
     std::shuffle(vec.begin(), vec.end(), RandomEngine());

@@ -113,17 +113,20 @@ TnLayer::TnLayer(int row_, int colum_, ActiveFuncPtr actFunc, DerivFuncPtr deriv
     : activeFunc(actFunc), derivFunc(derivFunc_)
 {
     // 随机源统一走 TnRandom，种子由外部指定并记录在 meta.json 里，保证可复现.
-    bias.resize(row_);
+    // He/Kaiming 初始化：权重 ~ N(0, sqrt(2/fan_in))，fan_in 为该层输入维度，适配 ReLU；
+    // 偏置置 0（He 的常规做法，避免偏置压过被缩小的权重）.
+    const double fanIn = static_cast<double>(colum_ > 0 ? colum_ : 1);
+    const double stddev = sqrt(2.0 / fanIn);
+    bias.resize(row_, 0);
     for (int r = 0; r < row_; r++)
     {
         vector<double> row;
         row.resize(colum_);
         for (int c = 0; c < colum_; c++)
         {
-            row[c] = RandomUniform(-1.0, 1.0);
+            row[c] = RandomNormal(0.0, stddev);
         }
         matrix.emplace_back(row);
-        bias[r] = RandomUniform(-1.0, 1.0);
     }
 }
 
