@@ -1,5 +1,6 @@
 #include "Sample.h"
 #include "TnRandom.h"
+#include <algorithm>
 #include <cassert>
 #include <cstdio>
 
@@ -94,10 +95,8 @@ bool Sample::SaveAsBmp(const char *path) const
         for (int x = 0; x < side; x++)
         {
             double v = (*this)[y * side + x];
-            if (v < 0.0)
-                v = 0.0;
-            if (v > 1.0)
-                v = 1.0;
+            v = std::max(v, 0.0);
+            v = std::min(v, 1.0);
             unsigned char pixel = (unsigned char) (v * 255.0 + 0.5);
             unsigned char bgr[3] = {pixel, pixel, pixel};
             fwrite(bgr, 1, sizeof(bgr), fp);

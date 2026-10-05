@@ -50,12 +50,6 @@ std::mt19937 &RandomEngine()
     return State().engine;
 }
 
-double RandomUniform(double low, double high)
-{
-    std::uniform_real_distribution<double> dist(low, high);
-    return dist(RandomEngine());
-}
-
 double RandomNormal(double mean, double stddev)
 {
     std::normal_distribution<double> dist(mean, stddev);

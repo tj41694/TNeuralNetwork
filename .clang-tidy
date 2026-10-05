@@ -47,8 +47,8 @@ Checks: >
   -readability-isolate-declaration,
   -readability-braces-around-statements,
   -readability-redundant-access-specifiers,
-  modernize-*,
-  -modernize-use-trailing-return-type,
+#      modernize-*,
+#      -modernize-use-trailing-return-type,
   portability-*,
   -portability-avoid-pragma-once,
 

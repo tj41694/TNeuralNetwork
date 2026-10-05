@@ -60,7 +60,7 @@ class Sample : public TnVector
 
   public:
     Sample(const Sample &);
-    Sample(int num_, const float *data, unsigned int floatCount);
+    Sample(int realNum, const float *data, unsigned int ct);
 
     double GetCostValue(CostFunc func, const TnVector &output) const;
     bool SaveAsBmp(const char *path) const;
