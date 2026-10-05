@@ -239,7 +239,7 @@ void TnLayer::CalcGradient(const TnVector &prevLyActiveValues, const TnLayer &cu
                            TnVector *preGradients)
 {
     derivFunc(curLayer.preActiveValues, values);
-    if (preGradients)
+    if (preGradients != nullptr)
     {
         preGradients->clear();
         preGradients->resize(prevLyActiveValues.size(), 0);
@@ -251,7 +251,7 @@ void TnLayer::CalcGradient(const TnVector &prevLyActiveValues, const TnLayer &cu
         assert(prevLyActiveValues.size() == curLayer.matrix[i].size());
         for (int j = 0; j < (int) prevLyActiveValues.size(); ++j)
         {
-            if (preGradients)
+            if (preGradients != nullptr)
             {
                 // 前一层的激活值偏导梯度为此层权重累加
                 (*preGradients)[j] += (curLayer.matrix[i][j] * values[i]);

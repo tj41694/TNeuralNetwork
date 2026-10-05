@@ -46,6 +46,7 @@ Checks: >
   -readability-function-cognitive-complexity,
   -readability-isolate-declaration,
   -readability-braces-around-statements,
+  -readability-redundant-access-specifiers,
   modernize-*,
   -modernize-use-trailing-return-type,
   portability-*,

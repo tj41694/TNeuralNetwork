@@ -29,8 +29,8 @@ class TnLayer
     void operator-=(const TnLayer &other);
     const TnVector &Values() const;
     TnVector &Values();
-    void CalcGradient(const TnVector &prevActiveValues, const TnLayer &curLayer,
-                      TnVector *preGradients);
+    void CalcGradient(const TnVector &prevLyActiveValues, const TnLayer &curLayer,
+                           TnVector *preGradients);
 
     // 只读访问器：供遥测读取权重与预激活值，不影响训练逻辑.
     const vector<vector<double>> &Matrix() const;

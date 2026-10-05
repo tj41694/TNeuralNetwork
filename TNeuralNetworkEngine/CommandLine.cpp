@@ -9,8 +9,6 @@
 
 namespace
 {
-using std::exit;
-
 #if defined(_WIN32)
 // 终端里中文乱码的根因：源码与 printf 走的是 UTF-8 字节，而 Windows 控制台默认按系统
 // ANSI 代码页（简中为 936/GBK）解码这些字节，两者不一致就成了"鐢ㄦ硶"这种乱码。

@@ -155,9 +155,9 @@ L3 只有 3/170 个权重越界，落在边缘 bin 的也只有 1.76% 的质量 
 |---|---|---|
 | `loss` | batch 内交叉熵均值，除以 `batchs.size()`（**不是**常量 `batchSize`） | `UpdateWeights` 之前 |
 | `lr` | **真正传给 `UpdateWeights` 的值** | `UpdateWeights` 之前 |
-| `gradNorm` | `sqrt(sum g²)`，g 为累加后的梯度（**未**除以 batchSize） | `UpdateWeights` 之前 |
+| `gradNorm` | `sqrt(sum g²)`，g 为累加后的梯度（已在反向传播中除以 batchSize） | `UpdateWeights` 之前 |
 | `weightNorm` | `sqrt(sum w²)`，含 `matrix` 与 `bias` | `UpdateWeights` 之后 |
-| `updateRatio` | `(lr / batchSize) * gradNorm / weightNorm` | `UpdateWeights` 之后 |
+| `updateRatio` | `lr * gradNorm / weightNorm`，即这一步把权重挪动了多大比例 | `UpdateWeights` 之后 |
 
 这五个量只需对约 2 万个 double 扫两遍，成本可忽略，但 `gradNorm` / `weightNorm` / `updateRatio` 对诊断发散远比 `loss` 直接，**第一版就要带上**。
 

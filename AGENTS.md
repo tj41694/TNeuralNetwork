@@ -41,7 +41,7 @@ cd build; .\NumDistinguish.exe                                                 #
 
 - 网络与超参（`main.cpp` 建网络、`TrainingOptions` 给默认值）：784 → 24(ReLU) → 24(ReLU) → 16(ReLU) → 10(SoftMax)，CrossEntropy，SGD，batch=100，默认 25000 步。
 - 学习率在 `TrainingOptions` 里：step ≥ 20000 后由 0.1 降到 0.05。日志记录的是**真正传入** `UpdateWeights` 的值。
-- **`TnLayer::values` 一值两用**：前向是激活值，反向被 `CalcGradient` 重写成梯度，勿混用。batch 内对共享 gradient layer 累加梯度（拷贝构造、零初始化），`UpdateWeights` 再除以 batchSize。
+- **`TnLayer::values` 一值两用**：前向是激活值，反向被 `CalcGradient` 重写成梯度，勿混用。batch 内对共享 gradient layer 累加梯度（拷贝构造、零初始化）；反向一开始就把输出层梯度除以 batchSize，累加后即为 batch 平均梯度，`UpdateWeights` 只按学习率缩放。
 - `matrix`/`bias`/`preActiveValues` 是 `protected`/`private`，但已有只读访问器 `Matrix()` / `Bias()` / `PreActiveValues()`；`operator*=` 内完成矩阵乘 + 加 bias + 激活。
 - `DerivSoftMax` 的空实现是 softmax+CE 的**有意设计**（梯度已在 `Backward` 里写成 `output - onehot`），不要"补全"；`Sigmoid`/`DerivSigmoid` 才是真 TODO。
 - 随机性统一走 `TnRandom`（mt19937 + 显式 seed 写进 `meta.json`），**不要**再用 `rand()` 或当前时间做种子，否则 run 之间无法对比。

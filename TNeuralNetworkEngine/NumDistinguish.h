@@ -44,8 +44,9 @@ class DigitalDistinguish
 
   private:
     void Forward(const Sample &input);
-    void Backward(const Sample &input, const TnVector &output, vector<TnLayer *> &gradients) const;
-    void UpdateWeights(const vector<TnLayer *> &gradients, size_t batchSize, double stepRate);
+    void Backward(const Sample &input, const TnVector &output,
+                  vector<TnLayer *> &gradientLayers, size_t batchSize) const;
+    void UpdateWeights(const vector<TnLayer *> &gradients, double stepRate);
 
   private:
     vector<TnLayer *> m_layers;

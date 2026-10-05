@@ -117,15 +117,15 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, const Trainin
             Forward(input);
             const auto &output = m_layers.back()->Values();
             sampleTotalVal += input.GetCostValue(CostFunc::CrossEntropy, output);
-            Backward(input, output, gradients);
+            Backward(input, output, gradients, batchs.size());
         }
 
-        // 必须在 UpdateWeights 之前取：那时梯度层还是"累加后的原始梯度"，
-        // 一旦 UpdateWeights 跑过就被按 lr/batchSize 缩放并相减了.
+        // 必须在 UpdateWeights 之前取：此时梯度层是 batch 平均后的梯度，
+        // 一旦 UpdateWeights 跑过就被按 lr 缩放并相减了.
         double gradNorm = TotalNorm(gradients);
 
         const double lr = (step >= options.lrDecayFromStep) ? options.lrLow : options.lrHigh;
-        UpdateWeights(gradients, batchs.size(), lr);
+        UpdateWeights(gradients, lr);
         for (auto *gradient : gradients)
             delete gradient;
 
@@ -146,10 +146,8 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, const Trainin
             record.loss = loss;
             record.gradNorm = gradNorm;
             record.weightNorm = weightNorm;
-            record.updateRatio = (weightNorm > 0.0)
-                                     ? (lr / static_cast<double>(effectiveBatch)) * gradNorm /
-                                           weightNorm
-                                     : 0.0;
+            record.updateRatio =
+                (weightNorm > 0.0) ? lr * gradNorm / weightNorm : 0.0;
             recorder->LogScalars(record);
 
             if (policy->histEvery > 0 && step % policy->histEvery == 0)
@@ -237,7 +235,7 @@ void DigitalDistinguish::Validate(const vector<Sample *> &data)
 // layer 的 value。基于此梯度值对共用 gradient layer 的权重以及偏置进行累加。
 // 即 gradient layers 内的权重以及偏置是累加共用的，但其内部的 value 值是每一次 backward 重新写入的
 void DigitalDistinguish::Backward(const Sample &input, const TnVector &output,
-                                  vector<TnLayer *> &gradientLayers) const
+                                  vector<TnLayer *> &gradientLayers, size_t batchSize) const
 {
     assert(gradientLayers.size() == m_layers.size());
     int layerCt = (int)m_layers.size();
@@ -247,6 +245,14 @@ void DigitalDistinguish::Backward(const Sample &input, const TnVector &output,
     // One-hot梯度值等于其自身减1, 除了one hot，其他梯度值都是激活值本身.前提是最后的输出层是用
     // softmax 加交叉熵的组合
     gradientLayers.back()->Values()[input.m_realValue] -= 1;
+
+    // 第一时间除以 batchSize：后续整条反向链对输出层梯度都是线性缩放，逐样本累加完即为
+    // batch 平均梯度，所以 UpdateWeights 里无需再除.
+    const double invBatch = 1.0 / static_cast<double>(batchSize > 0 ? batchSize : 1);
+    for (auto &v : gradientLayers.back()->Values())
+    {
+        v *= invBatch;
+    }
 
     // 由输出层至输入层逐层反向传播
     for (int i = layerCt - 1; i >= 0; --i)
@@ -258,13 +264,12 @@ void DigitalDistinguish::Backward(const Sample &input, const TnVector &output,
     }
 }
 
-void DigitalDistinguish::UpdateWeights(const vector<TnLayer *> &gradients, size_t batchSize,
-                                       double stepRate)
+void DigitalDistinguish::UpdateWeights(const vector<TnLayer *> &gradients, double stepRate)
 {
-    double ratio = stepRate / (double)batchSize;
+    // 梯度在反向传播时已除以 batchSize，这里只按学习率缩放.
     for (size_t i = 0; i < m_layers.size(); i++)
     {
-        *gradients[i] *= ratio;
+        *gradients[i] *= stepRate;
         *m_layers[i] -= *gradients[i];
     }
 }
