@@ -144,7 +144,7 @@ async function main() {
       + `，最大边缘堆积 ${(worst.e * 100).toFixed(2)}%（L${worst.i}）`;
     if (worst.e > 0.05) {
       console.log(`  WARN  分箱范围 ${rangeDesc} 截断明显：${summary}；`
-        + '换更大的 --hist-range（可按层给，如 3,3,3,6）可以改善');
+        + '换更大的 --hist-range（可按层给，如 1,1.5,1.5,2）可以改善');
     } else {
       console.log(`  INFO  分箱范围 ${rangeDesc} 无实质截断：${summary}`);
     }

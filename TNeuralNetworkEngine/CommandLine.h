@@ -15,9 +15,10 @@ struct Options
     std::string outRoot = "../runs";
     std::string webRoot = "../web";
     bool serveOnly = false;
-    uint32_t probes = 16;
-    // 直方图固定分箱范围，一个值＝所有层，或按层各一个（逗号分隔）
-    std::vector<double> histRanges{3.0};
+    uint32_t probes = 200;
+    // 直方图固定分箱范围，一个值＝所有层，或按层各一个（逗号分隔）。
+    // 默认按 He/Kaiming 初始化下的实测峰值给：0.85 / 1.37 / 1.34 / 1.86，各留约 10~20% 余量.
+    std::vector<double> histRanges{1.0, 1.5, 1.5, 2.0};
 };
 
 // 解析命令行参数到 opt。--help 会打印用法并 exit(0)；

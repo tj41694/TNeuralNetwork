@@ -16,11 +16,10 @@ struct LoggingPolicy
     // 直方图固定分箱范围 ±histRanges[l]，必须全 run 不变，否则热力图会横向漂移。
     // 只填一个值时对所有层生效；要按层区分就填满层数个。
     //
-    // 默认 3 而不是 2 的来由（实测一次 25000 步的 run，用每层 counts 估分位数）：
-    // 四层分布的 99% 质量都落在 ±1.1 ~ ±2.0 之内，而峰值分别是 1.69 / 1.70 / 2.20 / 4.47。
-    // 取 ±3 让前三层的峰值完全不溢出、核心仍占 64 格中的 24~42 格；
-    // 放宽到 ±5 只会把核心压到 14~25 格，白白损失分辨率。
-    std::vector<double> histRanges{3.0};
+    // 默认按层给（He/Kaiming 初始化下实测一次 25000 步的 run，取每层 |w| 峰值）：
+    // 1.0 / 1.5 / 1.5 / 2.0，对应峰值 0.85 / 1.37 / 1.34 / 1.86，各留约 10~20% 余量。
+    // 若沿用旧的单一 ±3，浅层分布会被压到中间极少分箱，白白损失分辨率。
+    std::vector<double> histRanges{1.0, 1.5, 1.5, 2.0};
     uint32_t heartbeatMs = 2000;
     uint32_t flushMs = 100;
     uint32_t printEvery = 100;
@@ -29,7 +28,7 @@ struct LoggingPolicy
     {
         if (histRanges.empty())
         {
-            return 3.0;
+            return 1.5;
         }
         return histRanges[layer < histRanges.size() ? layer : histRanges.size() - 1];
     }
@@ -75,7 +74,7 @@ struct RunMeta
     uint32_t totalSteps = 25000;
     double lrHigh = 0.1;
     double lrLow = 0.05;
-    uint32_t lrDecayFromStep = 20000;
+    uint32_t lrDecayFromStep = 17500;
 };
 
 // 训练遥测写入器。约定：只有训练线程调用它，HTTP 服务永远只读这些文件，

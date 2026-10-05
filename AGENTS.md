@@ -17,7 +17,7 @@ cd build; .\NumDistinguish.exe                                                 #
 ```
 
 - `main.cpp` 以相对路径打开 `resources/test.db`，所以工作目录必须是 `build/`。该库（约 287MB）不在 git 中，新克隆需自备，缺失直接 `return 1`。
-- 常用参数：`--exp NAME`、`--seed N`、`--steps N`、`--probes N`、`--hist-range R`（一个值=所有层，或 `3,3,3,6` 按层给）、`--port N`（默认 5108，占用时自动换）、`--serve-only`（只启动服务、不训练）、`--help`。
+- 常用参数：`--exp NAME`、`--seed N`、`--steps N`、`--probes N`、`--hist-range R`（一个值=所有层，或 `1,1.5,1.5,2` 按层给，这也是默认）、`--port N`（默认 5108，占用时自动换）、`--serve-only`（只启动服务、不训练）、`--help`。
 - 21000 步约 2 分钟（Release，本机），默认每 100 步打印一行；别因为打印稀疏就误判成卡死。
 
 ## 代码约定
@@ -40,7 +40,8 @@ cd build; .\NumDistinguish.exe                                                 #
 模型细节（`TNeuralNetworkEngine/`）：
 
 - 网络与超参（`main.cpp` 建网络、`TrainingOptions` 给默认值）：784 → 24(ReLU) → 24(ReLU) → 16(ReLU) → 10(SoftMax)，CrossEntropy，SGD，batch=100，默认 25000 步。
-- 学习率在 `TrainingOptions` 里：step ≥ 20000 后由 0.1 降到 0.05。日志记录的是**真正传入** `UpdateWeights` 的值。
+- 学习率在 `TrainingOptions` 里：step ≥ 17500 后由 0.1 降到 0.05。日志记录的是**真正传入** `UpdateWeights` 的值。
+- 权重初始化在 `TnLayer` 构造函数里用 He/Kaiming：`N(0, sqrt(2/fan_in))`（`fan_in` 为该层输入维度），偏置置 0；随机源走 `TnRandom::RandomNormal`。
 - **`TnLayer::values` 一值两用**：前向是激活值，反向被 `CalcGradient` 重写成梯度，勿混用。batch 内对共享 gradient layer 累加梯度（拷贝构造、零初始化）；反向一开始就把输出层梯度除以 batchSize，累加后即为 batch 平均梯度，`UpdateWeights` 只按学习率缩放。
 - `matrix`/`bias`/`preActiveValues` 是 `protected`/`private`，但已有只读访问器 `Matrix()` / `Bias()` / `PreActiveValues()`；`operator*=` 内完成矩阵乘 + 加 bias + 激活。
 - `DerivSoftMax` 的空实现是 softmax+CE 的**有意设计**（梯度已在 `Backward` 里写成 `output - onehot`），不要"补全"；`Sigmoid`/`DerivSigmoid` 才是真 TODO。
