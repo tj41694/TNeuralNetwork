@@ -82,12 +82,12 @@ bool GetData(vector<Sample *> &datas, int type)
     return true;
 }
 
-// 训练结束后保持服务存活，方便继续看页面。
+// 保持服务存活，方便继续看页面。
 // 交互式终端按回车退出；非交互式（后台运行/管道）读不到输入就退化为一直存活，
-// 靠 Ctrl+C 或外部终止结束——这样"训练跑完了但页面还在"才是可靠的行为。
-void HoldServerAlive(const std::string &url)
+// 靠 Ctrl+C 或外部终止结束。
+void HoldServerAlive()
 {
-    printf("\n仪表盘仍在 %s\n按回车退出（非交互式运行则保持存活，Ctrl+C 亦可）...\n", url.c_str());
+    printf("\n按回车退出（非交互式运行则保持存活，Ctrl+C 亦可）...\n");
     std::string line;
     std::getline(std::cin, line);
     if (!std::cin.eof())
@@ -99,41 +99,27 @@ void HoldServerAlive(const std::string &url)
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
 }
-} // namespace
 
-int main(int argc, char **argv)
+// --serve-only：只把已有的 runs/ 服务起来，不碰数据库、不建网络。
+int RunServeOnly(const Options &opt)
 {
-    Options opt;
-    if (!ParseArgs(argc, argv, opt))
+    DashboardServer server;
+    std::string url;
+    if (!server.Start(opt.outRoot, opt.webRoot, opt.port, url))
     {
-        return 2;
+        printf("HTTP 服务启动失败。\n");
+        return 3;
     }
-    if (opt.steps == 0)
-    {
-        opt.steps = 25000;
-    }
+    printf("仪表盘: %s\n", url.c_str());
+    HoldServerAlive();
+    server.Stop();
+    printf("done..\n");
+    return 0;
+}
 
-#if defined(_WIN32)
-    SetConsoleCtrlHandler(ConsoleHandler, TRUE);
-#endif
-
-    // 只看不练：把已有的 runs/ 服务起来，便于回看历史 run 与做端到端验证。
-    if (opt.serveOnly)
-    {
-        DashboardServer server;
-        std::string url;
-        if (!server.Start(opt.outRoot, opt.webRoot, opt.port, url))
-        {
-            printf("HTTP 服务启动失败。\n");
-            return 3;
-        }
-        printf("仪表盘: %s\n", url.c_str());
-        HoldServerAlive(url);
-        server.Stop();
-        printf("done..\n");
-        return 0;
-    }
-
+// 默认路径：只训练，不启动任何 HTTP 服务。
+int RunTraining(const Options &opt)
+{
     if (opt.seedGiven)
     {
         SeedRandom(opt.seed);
@@ -195,24 +181,6 @@ int main(int argc, char **argv)
         printf("遥测目录创建失败，训练继续但不记录。\n");
     }
 
-    std::string url;
-    DashboardServer server;
-    if (opt.serve)
-    {
-        if (!server.Start(opt.outRoot, opt.webRoot, opt.port, url))
-        {
-            printf("HTTP 服务启动失败（端口被占用？），训练继续。\n");
-        }
-        else
-        {
-            printf("仪表盘: %s\n", url.c_str());
-            if (recording)
-            {
-                recorder.SetUrl(url);
-            }
-        }
-    }
-
     TrainingOptions training;
     training.batchSize = opt.batchSize;
     training.totalSteps = opt.steps;
@@ -238,12 +206,31 @@ int main(int argc, char **argv)
     for (auto *data : testDatas)
         delete data;
 
-    if (opt.hold && server.IsRunning())
-    {
-        HoldServerAlive(url);
-    }
-
-    server.Stop();
     printf("done..\n");
     return 0;
+}
+} // namespace
+
+int main(int argc, char **argv)
+{
+    Options opt;
+    if (!ParseArgs(argc, argv, opt))
+    {
+        return 2;
+    }
+    if (opt.steps == 0)
+    {
+        opt.steps = 25000;
+    }
+
+#if defined(_WIN32)
+    SetConsoleCtrlHandler(ConsoleHandler, TRUE);
+#endif
+
+    // 两条路径互斥：--serve-only 只服务，其余（默认）只训练。
+    if (opt.serveOnly)
+    {
+        return RunServeOnly(opt);
+    }
+    return RunTraining(opt);
 }

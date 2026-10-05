@@ -60,13 +60,11 @@ void PrintUsage()
     printf("  --batch N        每批样本数 （默认 100）\n");
     printf("  --out DIR        遥测输出根目录 （默认 ../runs，即仓库根的 runs/）\n");
     printf("  --web DIR        前端静态文件目录 （默认 ../web）\n");
-    printf("  --port N         HTTP 端口；0 表示自动选空闲端口 （默认 0）\n");
+    printf("  --port N         HTTP 端口；默认 5108，被占用时自动改用空闲端口；0 表示直接自动分配\n");
     printf("  --probes N       激活快照使用的固定样本数 （默认 16，0 表示关闭）\n");
     printf("  --hist-range R   直方图固定分箱范围 ±R；一个值用于所有层，"
            "或用逗号按层各给一个（如 3,3,3,6，默认 3）\n");
-    printf("  --no-serve       不启动 HTTP 服务\n");
-    printf("  --serve-only     不训练，只把 runs/ 用 HTTP 服务起来（回看历史 run）\n");
-    printf("  --no-hold        训练结束后立即退出，不等回车\n");
+    printf("  --serve-only     只启动 HTTP 服务，不训练（回看历史 run）\n");
 }
 
 bool ParseUint(const char *text, uint32_t &out)
@@ -102,14 +100,6 @@ bool ParseArgs(int argc, char **argv, Options &opt)
         {
             PrintUsage();
             exit(0);
-        }
-        else if (arg == "--no-serve")
-        {
-            opt.serve = false;
-        }
-        else if (arg == "--no-hold")
-        {
-            opt.hold = false;
         }
         else if (arg == "--serve-only")
         {

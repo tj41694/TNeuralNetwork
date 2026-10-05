@@ -226,7 +226,7 @@ std::string BuildRunsJson(const std::string &runsRoot)
 
 struct DashboardServer::Impl
 {
-    httplib::Server server;
+    std::unique_ptr<httplib::Server> server;
     std::thread worker;
     std::atomic<bool> running{false};
     std::string runsRoot;
@@ -250,7 +250,7 @@ struct DashboardServer::Impl
         res.set_content(body, MimeForName(name));
     }
 
-    void Setup()
+    void Setup(httplib::Server &server)
     {
         // 只读：任何写方法直接 405
         server.set_pre_routing_handler([](const httplib::Request &req, httplib::Response &res) {
@@ -332,30 +332,38 @@ bool DashboardServer::Start(const std::string &runsRoot, const std::string &webR
     std::error_code ec;
     std::filesystem::create_directories(runsRoot, ec);
 
-    m_impl->Setup();
+    m_impl->server = std::make_unique<httplib::Server>();
+    m_impl->Setup(*m_impl->server);
 
     int actualPort = 0;
     if (port > 0)
     {
-        if (!m_impl->server.bind_to_port("127.0.0.1", port))
+        if (m_impl->server->bind_to_port("127.0.0.1", port))
         {
-            return false;
+            actualPort = port;
         }
-        actualPort = port;
+        else
+        {
+            // bind_to_port 失败会把 Server 标记为 decommissioned，同一实例无法再 bind；
+            // 换一个干净的实例重来，回退到系统分配的空闲端口，保证服务总能起来。
+            m_impl->server = std::make_unique<httplib::Server>();
+            m_impl->Setup(*m_impl->server);
+        }
     }
-    else
+    if (actualPort <= 0)
     {
         // 只绑 loopback：既避免 Windows 防火墙弹窗，也避免把 runs/ 暴露到局域网
-        actualPort = m_impl->server.bind_to_any_port("127.0.0.1");
+        actualPort = m_impl->server->bind_to_any_port("127.0.0.1");
         if (actualPort <= 0)
         {
             return false;
         }
     }
 
+    httplib::Server *listening = m_impl->server.get();
     m_impl->running = true;
-    m_impl->worker = std::thread([this]() {
-        m_impl->server.listen_after_bind();
+    m_impl->worker = std::thread([this, listening]() {
+        listening->listen_after_bind();
         m_impl->running = false;
     });
 
@@ -369,7 +377,10 @@ void DashboardServer::Stop()
     {
         return;
     }
-    m_impl->server.stop();
+    if (m_impl->server)
+    {
+        m_impl->server->stop();
+    }
     if (m_impl->worker.joinable())
     {
         m_impl->worker.join();

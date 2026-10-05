@@ -11,11 +11,9 @@ struct Options
     bool seedGiven = false;
     uint32_t steps = 25000;
     int batchSize = 100;
-    int port = 0;
+    int port = 5108;
     std::string outRoot = "../runs";
     std::string webRoot = "../web";
-    bool serve = true;
-    bool hold = true;
     bool serveOnly = false;
     uint32_t probes = 16;
     // 直方图固定分箱范围，一个值＝所有层，或按层各一个（逗号分隔）

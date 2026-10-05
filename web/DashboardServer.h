@@ -12,7 +12,8 @@ class DashboardServer
     DashboardServer(const DashboardServer &) = delete;
     DashboardServer &operator=(const DashboardServer &) = delete;
 
-    // port <= 0 表示由系统分配空闲端口。成功时 urlOut 填成 http://127.0.0.1:<port>/
+    // port > 0 时优先绑定该端口，被占用则回退到系统分配的空闲端口；port <= 0 直接自动分配。
+    // 成功时 urlOut 填成 http://127.0.0.1:<port>/
     bool Start(const std::string &runsRoot, const std::string &webRoot, int port,
                std::string &urlOut);
     void Stop();
