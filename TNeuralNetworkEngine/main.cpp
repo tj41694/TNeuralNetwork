@@ -153,7 +153,7 @@ int RunTraining(const Options &opt)
     model.PushLayer(24, 24, ReLU, DerivReLU);
     model.PushLayer(24, 16, ReLU, DerivReLU);
     model.PushLayer(16, 10, SoftMax, DerivSoftMax);
-    model.Training(datas, training);
+    model.TrainingAdam(datas, training, 0.9, 0.999);
     const double accuracy = model.Validate(testDatas);
 
     if (recording)

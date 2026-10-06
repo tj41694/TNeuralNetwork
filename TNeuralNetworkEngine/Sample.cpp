@@ -194,6 +194,21 @@ void TnLayer::operator-=(const TnLayer &other)
     }
 }
 
+void TnLayer::AddScaled(const TnLayer &other, double scale)
+{
+    assert(matrix.size() == other.matrix.size());
+    assert(bias.size() == other.bias.size());
+    for (size_t r = 0; r < matrix.size(); ++r)
+    {
+        assert(matrix[r].size() == other.matrix[r].size());
+        bias[r] += scale * other.bias[r];
+        for (size_t c = 0; c < matrix[r].size(); ++c)
+        {
+            matrix[r][c] += scale * other.matrix[r][c];
+        }
+    }
+}
+
 // 在前向传播里，此值代表当前层的激活值；在反向传播里，此值代表当前层临时计算出的梯度.
 const TnVector &TnLayer::Values() const
 {

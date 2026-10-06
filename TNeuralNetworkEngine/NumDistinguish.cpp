@@ -120,8 +120,7 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, const Trainin
             Backward(input, output, gradients, batchs.size());
         }
 
-        // 必须在 UpdateWeights 之前取：此时梯度层是 batch 平均后的梯度，
-        // 一旦 UpdateWeights 跑过就被按 lr 缩放并相减了.
+        // 此时梯度层是 batch 平均后的梯度；先取范数再更新权重.
         double gradNorm = TotalNorm(gradients);
 
         const double lr = (step >= options.lrDecayFromStep) ? options.lrLow : options.lrHigh;
@@ -174,6 +173,129 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, const Trainin
             printf("Step: %u \t Samples: %llu \t lRate: %.6f \t Cost Value: %.5f\n", step,
                    static_cast<unsigned long long>(samplesSeen), lr, loss);
         }
+    }
+}
+
+void DigitalDistinguish::TrainingAdam(const vector<Sample *> &samples,
+                                      const TrainingOptions &options, double momentumBeta,
+                                      double rsmBeta)
+{
+    // 成员 m_adamGradients 保存跨 step 的 Adam 一阶动量，拷贝构造会零初始化，正合适.
+    for (auto *gradient : m_adamGradients)
+        delete gradient;
+    m_adamGradients.clear();
+    m_adamGradients.reserve(m_layers.size());
+    for (const auto &layer : m_layers)
+        m_adamGradients.emplace_back(new TnLayer(*layer));
+
+    Shuffle shuff(samples.size());
+    const int batchSize = options.batchSize > 0 ? options.batchSize : 1;
+    Recorder *recorder = options.recorder;
+    const LoggingPolicy *policy = (recorder != nullptr) ? &recorder->Policy() : nullptr;
+    const uint32_t printEvery = (policy != nullptr) ? policy->printEvery : 0;
+
+    const uint64_t startMs = SteadyMs();
+    uint64_t samplesSeen = 0;
+
+    for (uint32_t step = 1; step <= options.totalSteps; ++step)
+    {
+        if (options.stopRequested != nullptr && options.stopRequested->load())
+        {
+            break;
+        }
+
+        vector<Sample *> batchs;
+        shuff.GetShuffledData(samples, batchSize, batchs);
+        double sampleTotalVal = 0;
+        vector<TnLayer *> gradients;
+        gradients.reserve(m_layers.size());
+        for (const auto &layer : m_layers)
+            gradients.emplace_back(new TnLayer(*layer));
+        for (Sample *batch : batchs)
+        {
+            const auto &input = *batch;
+            Forward(input);
+            const auto &output = m_layers.back()->Values();
+            sampleTotalVal += input.GetCostValue(CostFunc::CrossEntropy, output);
+            Backward(input, output, gradients, batchs.size());
+        }
+
+        // 一个 batch 反向传播完毕：把成员里保存的动量与当前 batch 计算出的梯度融合.
+        FuseGradients(gradients, momentumBeta);
+        for (auto *gradient : gradients)
+            delete gradient;
+
+        // 融合后的动量即为本步用于更新的梯度，取范数后再更新权重.
+        double gradNorm = TotalNorm(m_adamGradients);
+
+        const double inputLr = step > options.lrDecayFromStep ? options.lrLow : options.lrHigh;
+        // Adam 偏差修正：m̂ = m / (1 − β^t)，等价于把本步学习率放大 1/(1−β^t).
+        const double correction =
+            1.0 - std::pow(momentumBeta, static_cast<double>(step));
+        const double lr = (correction > 0.0) ? inputLr / correction : inputLr;
+        UpdateWeights(m_adamGradients, lr);
+
+        double weightNorm = TotalNorm(m_layers);
+
+        const size_t effectiveBatch = batchs.empty() ? static_cast<size_t>(batchSize) : batchs.size();
+        samplesSeen += effectiveBatch;
+        const double loss = sampleTotalVal / static_cast<double>(effectiveBatch);
+
+        if (recorder != nullptr)
+        {
+            ScalarRecord record;
+            record.step = step;
+            record.samplesSeen = samplesSeen;
+            record.elapsedMs = static_cast<double>(SteadyMs() - startMs);
+            record.wallMs = WallMs();
+            record.lr = lr;
+            record.loss = loss;
+            record.gradNorm = gradNorm;
+            record.weightNorm = weightNorm;
+            record.updateRatio =
+                (weightNorm > 0.0) ? lr * gradNorm / weightNorm : 0.0;
+            recorder->LogScalars(record);
+
+            if (policy->histEvery > 0 && step % policy->histEvery == 0)
+            {
+                recorder->LogHistograms(step, m_layers);
+            }
+
+            if (policy->actEvery > 0 && step % policy->actEvery == 0 &&
+                options.probes != nullptr && !options.probes->empty())
+            {
+                // 权重与激活必须对应同一个 step，所以在 UpdateWeights 之后单独跑一次
+                // 前向。它会覆盖 m_layers 的 values，但下一轮会完整重算，无害.
+                for (size_t i = 0; i < options.probes->size(); ++i)
+                {
+                    Forward(*(*options.probes)[i]);
+                    recorder->LogActivations(step, static_cast<uint32_t>(i), m_layers);
+                }
+            }
+            recorder->Heartbeat(step);
+        }
+
+        if (printEvery == 0 || step % printEvery == 0 || step == options.totalSteps)
+        {
+            printf("Step: %u \t Samples: %llu \t lRate: %.6f \t Cost Value: %.5f\n", step,
+                   static_cast<unsigned long long>(samplesSeen), lr, loss);
+        }
+    }
+}
+
+// 融合 m_adamGradients（成员变量里保存的动量）与 currentGradients（当前 batch 计算的梯度）.
+// 只做 Adam 一阶动量的指数滑动平均 m = β·m + (1−β)·g；偏差修正不在这里做，
+// 否则修正后的值下一步会被再修正一次，逐级放大导致发散.
+void DigitalDistinguish::FuseGradients(const vector<TnLayer *> &currentGradients,
+                                       double momentumRatio)
+{
+    assert(m_adamGradients.size() == currentGradients.size());
+
+    const double oneMinusBeta = 1.0 - momentumRatio;
+    for (size_t l = 0; l < m_adamGradients.size(); ++l)
+    {
+        *m_adamGradients[l] *= momentumRatio;
+        m_adamGradients[l]->AddScaled(*currentGradients[l], oneMinusBeta);
     }
 }
 
@@ -268,11 +390,11 @@ void DigitalDistinguish::Backward(const Sample &input, const TnVector &output,
 
 void DigitalDistinguish::UpdateWeights(const vector<TnLayer *> &gradients, double stepRate)
 {
-    // 梯度在反向传播时已除以 batchSize，这里只按学习率缩放.
+    // 梯度在反向传播时已除以 batchSize，这里只按学习率缩放后相减。
+    // 用 AddScaled(负缩放) 而不是就地缩放梯度层：Adam 的成员动量在更新后必须保持原值.
     for (size_t i = 0; i < m_layers.size(); i++)
     {
-        *gradients[i] *= stepRate;
-        *m_layers[i] -= *gradients[i];
+        m_layers[i]->AddScaled(*gradients[i], -stepRate);
     }
 }
 
@@ -281,5 +403,9 @@ DigitalDistinguish::~DigitalDistinguish()
     for (auto *layer : m_layers)
     {
         delete layer;
+    }
+    for (auto *gradient : m_adamGradients)
+    {
+        delete gradient;
     }
 }

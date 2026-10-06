@@ -27,6 +27,8 @@ class TnLayer
     void operator*=(const vector<double> &vec);
     void operator*=(double scalar);
     void operator-=(const TnLayer &other);
+    // this += scale * other，逐元素作用于权重矩阵与偏置.
+    void AddScaled(const TnLayer &other, double scale);
     const TnVector &Values() const;
     TnVector &Values();
     void CalcGradient(const TnVector &prevLyActiveValues, const TnLayer &curLayer,

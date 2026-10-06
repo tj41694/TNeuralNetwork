@@ -36,9 +36,10 @@ class DigitalDistinguish
   public:
     ~DigitalDistinguish();
 
-    void PushLayer(int input, int output, ActiveFuncPtr activeFunc,
-                   DerivFuncPtr derivFunc);
+    void PushLayer(int input, int output, ActiveFuncPtr activeFunc, DerivFuncPtr derivFunc);
     void Training(const vector<Sample *> &samples, const TrainingOptions &options);
+    void TrainingAdam(const vector<Sample *> &samples, const TrainingOptions &options,
+                      double momentumBeta, double rsmBeta);
     int Distinguish(const Sample &sample);
     // 在 data 上评估，返回准确率（0~100），同时打印到控制台.
     double Validate(const vector<Sample *> &data);
@@ -48,7 +49,11 @@ class DigitalDistinguish
     void Backward(const Sample &input, const TnVector &output,
                   vector<TnLayer *> &gradientLayers, size_t batchSize) const;
     void UpdateWeights(const vector<TnLayer *> &gradients, double stepRate);
+    // 融合 m_adamGradients（成员变量里的动量）与当前 batch 计算出的梯度：m = β·m + (1−β)·g.
+    // 偏差修正不在这里做，由调用方在更新时按 1/(1−β^t) 处理，避免修正值被反复复用而放大.
+    void FuseGradients(const vector<TnLayer *> &currentGradients, double momentumRatio);
 
   private:
     vector<TnLayer *> m_layers;
+    vector<TnLayer *> m_adamGradients;
 };
