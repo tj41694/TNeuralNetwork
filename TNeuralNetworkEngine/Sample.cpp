@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdio>
+#include <utility>
 
 using namespace std;
 
@@ -139,6 +140,12 @@ TnLayer::TnLayer(const TnLayer &neural) : activeFunc(neural.activeFunc), derivFu
         matrix.emplace_back(row);
     }
 }
+TnLayer::TnLayer(TnLayer &&neural) noexcept
+    : matrix(std::move(neural.matrix)), bias(std::move(neural.bias)),
+      activeFunc(neural.activeFunc), derivFunc(neural.derivFunc), values(std::move(neural.values)),
+      preActiveValues(std::move(neural.preActiveValues))
+{
+}
 int TnLayer::row() const
 {
     return (int) matrix.size();
@@ -177,6 +184,20 @@ void TnLayer::operator*=(double scalar)
             matrix[r][c] *= scalar;
         }
     }
+}
+
+TnLayer TnLayer::operator*(double scalar) const
+{
+    TnLayer result(*this); // 拷贝构造只复制结构与激活函数，矩阵/偏置被零初始化.
+    for (size_t r = 0; r < matrix.size(); ++r)
+    {
+        result.bias[r] = bias[r] * scalar;
+        for (size_t c = 0; c < matrix[r].size(); ++c)
+        {
+            result.matrix[r][c] = matrix[r][c] * scalar;
+        }
+    }
+    return result;
 }
 
 void TnLayer::operator-=(const TnLayer &other)
@@ -250,6 +271,20 @@ double TnLayer::NormSquared() const
         sum += v * v;
     }
     return sum;
+}
+
+TnLayer TnLayer::Square() const
+{
+    TnLayer result(*this); // 拷贝构造只复制结构与激活函数，矩阵/偏置被零初始化，不消耗随机源.
+    for (int r = 0; r < row(); ++r)
+    {
+        result.bias[r] = bias[r] * bias[r];
+        for (int c = 0; c < col(); ++c)
+        {
+            result.matrix[r][c] = matrix[r][c] * matrix[r][c];
+        }
+    }
+    return result;
 }
 
 void TnLayer::CalcGradient(const TnVector &prevLyActiveValues, const TnLayer &curLayer,

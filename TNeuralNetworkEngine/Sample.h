@@ -22,9 +22,11 @@ class TnLayer
   public:
     TnLayer(int row_, int colum_, ActiveFuncPtr actFunc, DerivFuncPtr derivFunc_);
     TnLayer(const TnLayer &neural);
+    TnLayer(TnLayer &&neural) noexcept;
     int row() const;
     int col() const;
     void operator*=(const vector<double> &vec);
+    TnLayer operator*(double scalar) const;
     void operator*=(double scalar);
     void operator-=(const TnLayer &other);
     // this += scale * other，逐元素作用于权重矩阵与偏置.
@@ -41,6 +43,9 @@ class TnLayer
 
     // 权重矩阵与偏置的平方和（Frobenius 范数的平方），用于遥测统计梯度/权重的范数.
     double NormSquared() const;
+
+    // 返回一个新层，其权重矩阵与偏置均为当前层对应值的平方.
+    TnLayer Square() const;
 
   protected:
     vector<vector<double>> matrix;
