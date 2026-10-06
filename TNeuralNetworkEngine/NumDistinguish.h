@@ -49,11 +49,16 @@ class DigitalDistinguish
     void Backward(const Sample &input, const TnVector &output,
                   vector<TnLayer *> &gradientLayers, size_t batchSize) const;
     void UpdateWeights(const vector<TnLayer *> &gradients, double stepRate);
+    void UpdateWeightsAdam(double inputLr, uint32_t step, double momentumBeta,
+                                      double rsmBeta);
     // 融合 m_adamGradients（成员变量里的动量）与当前 batch 计算出的梯度：m = β·m + (1−β)·g.
     // 偏差修正不在这里做，由调用方在更新时按 1/(1−β^t) 处理，避免修正值被反复复用而放大.
     void FuseGradients(const vector<TnLayer *> &currentGradients, double momentumRatio);
+    // 初始化 Adam 的跨 step 状态：一阶动量与逐参数学习率，结构对齐 m_layers，数值零初始化.
+    void InitAdamState();
 
   private:
     vector<TnLayer *> m_layers;
     vector<TnLayer *> m_adamGradients;
+    vector<TnLayer *> m_adamLearningRates;
 };

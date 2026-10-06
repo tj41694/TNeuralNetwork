@@ -176,9 +176,7 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, const Trainin
     }
 }
 
-void DigitalDistinguish::TrainingAdam(const vector<Sample *> &samples,
-                                      const TrainingOptions &options, double momentumBeta,
-                                      double rsmBeta)
+void DigitalDistinguish::InitAdamState()
 {
     // 成员 m_adamGradients 保存跨 step 的 Adam 一阶动量，拷贝构造会零初始化，正合适.
     for (auto *gradient : m_adamGradients)
@@ -187,6 +185,21 @@ void DigitalDistinguish::TrainingAdam(const vector<Sample *> &samples,
     m_adamGradients.reserve(m_layers.size());
     for (const auto &layer : m_layers)
         m_adamGradients.emplace_back(new TnLayer(*layer));
+
+    // 逐参数学习率同样按 m_layers 的结构初始化，拷贝构造零初始化.
+    for (auto *rate : m_adamLearningRates)
+        delete rate;
+    m_adamLearningRates.clear();
+    m_adamLearningRates.reserve(m_layers.size());
+    for (const auto &layer : m_layers)
+        m_adamLearningRates.emplace_back(new TnLayer(*layer));
+}
+
+void DigitalDistinguish::TrainingAdam(const vector<Sample *> &samples,
+                                      const TrainingOptions &options, double momentumBeta,
+                                      double rsmBeta)
+{
+    InitAdamState();
 
     Shuffle shuff(samples.size());
     const int batchSize = options.batchSize > 0 ? options.batchSize : 1;
@@ -228,12 +241,8 @@ void DigitalDistinguish::TrainingAdam(const vector<Sample *> &samples,
         // 融合后的动量即为本步用于更新的梯度，取范数后再更新权重.
         double gradNorm = TotalNorm(m_adamGradients);
 
-        const double inputLr = step > options.lrDecayFromStep ? options.lrLow : options.lrHigh;
-        // Adam 偏差修正：m̂ = m / (1 − β^t)，等价于把本步学习率放大 1/(1−β^t).
-        const double correction =
-            1.0 - std::pow(momentumBeta, static_cast<double>(step));
-        const double lr = (correction > 0.0) ? inputLr / correction : inputLr;
-        UpdateWeights(m_adamGradients, lr);
+        const double lr = step > options.lrDecayFromStep ? options.lrLow : options.lrHigh;
+        UpdateWeightsAdam(lr, step, momentumBeta, rsmBeta);
 
         double weightNorm = TotalNorm(m_layers);
 
@@ -398,6 +407,15 @@ void DigitalDistinguish::UpdateWeights(const vector<TnLayer *> &gradients, doubl
     }
 }
 
+void DigitalDistinguish::UpdateWeightsAdam(double inputLr, uint32_t step, double momentumBeta,
+                                           double rsmBeta)
+{
+    // Adam 偏差修正：m̂ = m / (1 − β^t)，等价于把本步学习率放大 1/(1−β^t).
+    const double correction = 1.0 - std::pow(momentumBeta, static_cast<double>(step));
+    const double lr = (correction > 0.0) ? inputLr / correction : inputLr;
+    UpdateWeights(m_adamGradients, lr);
+}
+
 DigitalDistinguish::~DigitalDistinguish()
 {
     for (auto *layer : m_layers)
@@ -407,5 +425,9 @@ DigitalDistinguish::~DigitalDistinguish()
     for (auto *gradient : m_adamGradients)
     {
         delete gradient;
+    }
+    for (auto *rate : m_adamLearningRates)
+    {
+        delete rate;
     }
 }
