@@ -154,10 +154,11 @@ int RunTraining(const Options &opt)
     model.PushLayer(24, 16, ReLU, DerivReLU);
     model.PushLayer(16, 10, SoftMax, DerivSoftMax);
     model.Training(datas, training);
-    model.Validate(testDatas);
+    const double accuracy = model.Validate(testDatas);
 
     if (recording)
     {
+        recorder.SetFinalAccuracy(accuracy);
         recorder.EndRun(g_stopRequested.load() ? "interrupted" : "finished");
     }
 

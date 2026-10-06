@@ -40,7 +40,8 @@ class DigitalDistinguish
                    DerivFuncPtr derivFunc);
     void Training(const vector<Sample *> &samples, const TrainingOptions &options);
     int Distinguish(const Sample &sample);
-    void Validate(const vector<Sample *> &data);
+    // 在 data 上评估，返回准确率（0~100），同时打印到控制台.
+    double Validate(const vector<Sample *> &data);
 
   private:
     void Forward(const Sample &input);

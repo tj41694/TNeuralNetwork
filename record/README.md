@@ -16,7 +16,7 @@
 | 文件 | 形态 | 约 21000 步的体量 |
 |---|---|---|
 | `meta.json` | 一次性，含网络结构 / 超参 / seed / 采样策略 / probe 清单 | 1.4 KB |
-| `status.json` | 持续覆盖更新：state、lastStep、heartbeat、url | 170 B |
+| `status.json` | 持续覆盖更新：state、lastStep、最终 accuracy、heartbeat、url | 190 B |
 | `scalars.jsonl` | 每步一行 JSON：step / loss / lr / gradNorm / weightNorm / updateRatio | 3.4 MB |
 | `histograms.bin` | 定长记录：头 88 B + 每条 1060 B（step + 每层 min/max/64 个 counts） | 445 KB |
 | `activations.bin` | 定长记录：头 32 B + 每条 300 B（step + 各层激活值） | 504 KB |

@@ -79,6 +79,9 @@ node ..\tools\charts-check.mjs http://127.0.0.1:5110 <runName>
 
 ## 面板怎么读
 
+顶部标题栏显示所选 run 的状态、进度，以及训练结束后的最终测试集**准确率**（`status.json` 的 `accuracy`）；
+run 下拉列表里也会为已评估的 run 标出 `acc x.x%`。
+
 | 面板 | 画的是什么 |
 |---|---|
 | **Loss** | **蓝线** `#5ac8fa` 是该步 batch 的原始交叉熵（`scalars.jsonl` 的 `loss`，100 个样本的均值）；**黄线** `#ffd166` 是它的指数移动平均 |

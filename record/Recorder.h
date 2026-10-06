@@ -98,6 +98,8 @@ class Recorder
     void EndRun(const char *state, const std::string &error = std::string());
 
     void SetUrl(const std::string &url);
+    // 训练结束后的最终验证准确率（0~100）；未评估时 status.json 里写 null.
+    void SetFinalAccuracy(double accuracy);
 
     const LoggingPolicy &Policy() const
     {
@@ -124,6 +126,8 @@ class Recorder
     std::string m_createdAt;
     std::string m_url;
     std::string m_state = "running";
+    double m_accuracy = 0.0;
+    bool m_hasAccuracy = false;
     LoggingPolicy m_policy;
     RunMeta m_meta;
     FILE *m_scalars = nullptr;

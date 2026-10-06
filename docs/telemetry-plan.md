@@ -132,9 +132,13 @@ D:\projects\TNeuralNetwork\            # 仓库根
 `meta.json` 写完后不应再被改写，而"是否还在训练"是持续变化的，因此单独放一个文件，每约 5 秒原子替换一次：
 
 ```json
-{ "runId": "...", "state": "running|finished|crashed", "lastStep": 1234,
-  "heartbeatMs": 1767000000000, "url": "http://127.0.0.1:8080/", "error": null }
+{ "runId": "...", "state": "running|finished|crashed", "lastStep": 1234, "totalSteps": 25000,
+  "accuracy": 94.12, "heartbeatMs": 1767000000000, "url": "", "error": null }
 ```
+
+- `accuracy`：训练结束后 `Validate()` 在测试集上得到的准确率，单位是百分数（0~100）；训练中 / 未评估时为 `null`。
+  它是纯附加字段，老解析器忽略即可。
+- `url`：训练进程不再内嵌 HTTP 服务，因此恒为空串（保留字段以免破坏既有契约）。
 
 前端判断"进程是否还活着"只看 `heartbeatMs` 的时效，不去猜文件 mtime。
 
@@ -411,7 +415,9 @@ M0–M6 均已完成并通过验证（见 §0）。其中 M0 改了做法：没�
 
 ## 11. 未决 / 后续
 
-- **accuracy / 混淆矩阵**：需要周期性评估（插在 `UpdateWeights` 之后是安全的，不会破坏梯度累加），目前不在每步标量里。建议放 `metrics.jsonl`，低频。**注意 `Validate()` 目前只在训练结束后跑一次，所以页面上没有准确率曲线。**
+- **accuracy 曲线 / 混淆矩阵**：训练结束的最终准确率已写进 `status.json` 的 `accuracy` 并在页面顶部展示；
+  但它只在收尾时评估一次，所以**页面上还没有准确率曲线**。要画曲线需要周期性评估（插在 `UpdateWeights` 之后是安全的，
+  不会破坏梯度累加），建议另放低频的 `metrics.jsonl`。
 - **激活前 z**：访问器已经加上（`TnLayer::PreActiveValues()`），但记录格式里还没用。
 - **checkpoint 格式与生命周期**：独立设计，不与遥测混用。
 - **权重轨迹采样**：在固定随机索引上记录一小撮权重随 step 的变化，比直方图更适合做 3D/轨迹展示，成本极低。

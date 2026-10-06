@@ -236,6 +236,11 @@ function updateHeader() {
     setPill('疑似停滞', 'warn');
   }
 
+  // 最终验证准确率：训练结束时算一次，写进 status.json；未评估时是 null.
+  el('accuracy').textContent = Number.isFinite(st.accuracy)
+    ? `准确率 ${st.accuracy.toFixed(2)}%`
+    : '';
+
   const bad = (state.scalars && state.scalars.badLines) || 0;
   el('warn').textContent = bad > 0 ? `已跳过 ${bad} 行无法解析的数据` : '';
 }
@@ -370,7 +375,10 @@ async function boot() {
       const o = document.createElement('option');
       o.value = r.name;
       const st = r.status ? ` · ${r.status.state} · step ${r.status.lastStep}` : '';
-      o.textContent = r.name + st;
+      const acc = r.status && Number.isFinite(r.status.accuracy)
+        ? ` · acc ${r.status.accuracy.toFixed(1)}%`
+        : '';
+      o.textContent = r.name + st + acc;
       sel.appendChild(o);
     }
     if (!list.runs.length) {

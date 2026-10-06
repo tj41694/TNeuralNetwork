@@ -497,6 +497,16 @@ void Recorder::SetUrl(const std::string &url)
     }
 }
 
+void Recorder::SetFinalAccuracy(double accuracy)
+{
+    m_hasAccuracy = std::isfinite(accuracy);
+    m_accuracy = m_hasAccuracy ? accuracy : 0.0;
+    if (!m_runDir.empty())
+    {
+        WriteStatus(m_lastStep, m_state.c_str(), std::string());
+    }
+}
+
 void Recorder::FlushIfDue(bool force)
 {
     const uint64_t now = NowSteadyMs();
@@ -528,6 +538,7 @@ void Recorder::WriteStatus(uint32_t lastStep, const char *state, const std::stri
     j += "\"state\":\"" + JsonEscape(state) + "\",";
     j += "\"lastStep\":" + std::to_string(lastStep) + ",";
     j += "\"totalSteps\":" + std::to_string(m_meta.totalSteps) + ",";
+    j += "\"accuracy\":" + (m_hasAccuracy ? FmtNumber(m_accuracy) : std::string("null")) + ",";
     j += "\"heartbeatMs\":" + std::to_string(NowWallMs()) + ",";
     j += "\"url\":\"" + JsonEscape(m_url) + "\",";
     j += "\"error\":";

@@ -208,7 +208,7 @@ int DigitalDistinguish::Distinguish(const Sample &sample)
     return result;
 }
 
-void DigitalDistinguish::Validate(const vector<Sample *> &data)
+double DigitalDistinguish::Validate(const vector<Sample *> &data)
 {
     // const char *errorDir = "errors";
     // std::filesystem::create_directories(errorDir);
@@ -227,8 +227,10 @@ void DigitalDistinguish::Validate(const vector<Sample *> &data)
         }
         index++;
     }
-    double corectRate = 100.0 * (double) corectCount / (double)data.size();
+    const double corectRate =
+        data.empty() ? 0.0 : 100.0 * (double) corectCount / (double) data.size();
     printf("accuracy: %.3f%%\n", corectRate);
+    return corectRate;
 }
 
 // 每一组 batch 多次 backward 共用相同的 gradient layers，但注意每一次 backward 都会重写 gradient
