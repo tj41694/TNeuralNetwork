@@ -378,7 +378,9 @@ void DigitalDistinguish::PushLayer(int input, int output,
     m_layers.emplace_back(layer);
 }
 
-void DigitalDistinguish::Training(const vector<Sample *> &samples, const TrainingOptions &options)
+void DigitalDistinguish::RunTrainingLoop(
+    const vector<Sample *> &samples, const TrainingOptions &options,
+    const function<void(uint32_t, vector<TnLayer *> &, double &, double &)> &optimize)
 {
     Shuffle shuff(samples.size());
     const int batchSize = options.batchSize > 0 ? options.batchSize : 1;
@@ -417,11 +419,10 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, const Trainin
             Backward(input, output, gradients, batchs.size());
         }
 
-        // 此时梯度层是 batch 平均后的梯度；先取范数再更新权重.
-        double gradNorm = TotalNorm(gradients);
-
-        const double lr = (step >= options.lrDecayFromStep) ? options.lrLow : options.lrHigh;
-        UpdateWeights(gradients, lr);
+        // 交给具体优化器：消费梯度、更新权重，并回填本步 lr 与用于日志的 gradNorm.
+        double lr = 0.0;
+        double gradNorm = 0.0;
+        optimize(step, gradients, lr, gradNorm);
         for (auto *gradient : gradients)
             delete gradient;
 
@@ -475,6 +476,16 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, const Trainin
     }
 
     validator.Finish();
+}
+
+void DigitalDistinguish::Training(const vector<Sample *> &samples, const TrainingOptions &options)
+{
+    RunTrainingLoop(samples, options,
+                    [&](uint32_t step, vector<TnLayer *> &gradients, double &lr, double &gradNorm) {
+                        gradNorm = TotalNorm(gradients);
+                        lr = (step >= options.lrDecayFromStep) ? options.lrLow : options.lrHigh;
+                        UpdateWeights(gradients, lr);
+                    });
 }
 
 void DigitalDistinguish::InitAdamState()
@@ -502,104 +513,15 @@ void DigitalDistinguish::TrainingAdam(const vector<Sample *> &samples,
 {
     InitAdamState();
 
-    Shuffle shuff(samples.size());
-    const int batchSize = options.batchSize > 0 ? options.batchSize : 1;
-    Recorder *recorder = options.recorder;
-    const LoggingPolicy *policy = (recorder != nullptr) ? &recorder->Policy() : nullptr;
-    const uint32_t printEvery = (policy != nullptr) ? policy->printEvery : 0;
-
-    // 周期性准确率评估：封装在 PeriodicValidator 里（内部起独立线程 + 并行子线程）。
-    PeriodicValidator validator(recorder, options, samples);
-    // 先对初始权重评估一次，作为 step 0 基线.
-    validator.Tick(0, m_layers);
-
-    const uint64_t startMs = SteadyMs();
-    uint64_t samplesSeen = 0;
-
-    for (uint32_t step = 1; step <= options.totalSteps; ++step)
-    {
-        if (options.stopRequested != nullptr && options.stopRequested->load())
-        {
-            break;
-        }
-
-        vector<Sample *> batchs;
-        shuff.GetShuffledData(samples, batchSize, batchs);
-        double sampleTotalVal = 0;
-        vector<TnLayer *> gradients;
-        gradients.reserve(m_layers.size());
-        for (const auto &layer : m_layers)
-            gradients.emplace_back(new TnLayer(*layer));
-        for (Sample *batch : batchs)
-        {
-            const auto &input = *batch;
-            Forward(input);
-            const auto &output = m_layers.back()->Values();
-            sampleTotalVal += input.GetCostValue(CostFunc::CrossEntropy, output);
-            Backward(input, output, gradients, batchs.size());
-        }
-
-        // 一个 batch 反向传播完毕：把成员里保存的动量与当前 batch 计算出的梯度融合.
-        FuseGradients(gradients, momentumBeta, rsmBeta);
-        for (auto *gradient : gradients)
-            delete gradient;
-
-        // 融合后的动量即为本步用于更新的梯度，取范数后再更新权重.
-        double gradNorm = TotalNorm(m_adamGradients);
-
-        const double lr = options.lrHigh / 100;
-        UpdateWeightsAdam(lr, step, momentumBeta, rsmBeta);
-
-        double weightNorm = TotalNorm(m_layers);
-
-        const size_t effectiveBatch = batchs.empty() ? static_cast<size_t>(batchSize) : batchs.size();
-        samplesSeen += effectiveBatch;
-        const double loss = sampleTotalVal / static_cast<double>(effectiveBatch);
-
-        if (recorder != nullptr)
-        {
-            ScalarRecord record;
-            record.step = step;
-            record.samplesSeen = samplesSeen;
-            record.elapsedMs = static_cast<double>(SteadyMs() - startMs);
-            record.wallMs = WallMs();
-            record.lr = lr;
-            record.loss = loss;
-            record.gradNorm = gradNorm;
-            record.weightNorm = weightNorm;
-            record.updateRatio =
-                (weightNorm > 0.0) ? lr * gradNorm / weightNorm : 0.0;
-            recorder->LogScalars(record);
-
-            if (policy->histEvery > 0 && step % policy->histEvery == 0)
-            {
-                recorder->LogHistograms(step, m_layers);
-            }
-
-            if (policy->actEvery > 0 && step % policy->actEvery == 0 &&
-                options.probes != nullptr && !options.probes->empty())
-            {
-                // 权重与激活必须对应同一个 step，所以在 UpdateWeights 之后单独跑一次
-                // 前向。它会覆盖 m_layers 的 values，但下一轮会完整重算，无害.
-                for (size_t i = 0; i < options.probes->size(); ++i)
-                {
-                    Forward(*(*options.probes)[i]);
-                    recorder->LogActivations(step, static_cast<uint32_t>(i), m_layers);
-                }
-            }
-            recorder->Heartbeat(step);
-        }
-
-        validator.Tick(step, m_layers);
-
-        if (printEvery == 0 || step % printEvery == 0 || step == options.totalSteps)
-        {
-            printf("Step: %u \t Samples: %llu \t lRate: %.6f \t Cost Value: %.5f\n", step,
-                   static_cast<unsigned long long>(samplesSeen), lr, loss);
-        }
-    }
-
-    validator.Finish();
+    RunTrainingLoop(
+        samples, options,
+        [&](uint32_t step, vector<TnLayer *> &gradients, double &lr, double &gradNorm) {
+            // 先把成员里保存的动量与当前 batch 的梯度融合，融合后的动量即本步用于更新的梯度.
+            FuseGradients(gradients, momentumBeta, rsmBeta);
+            gradNorm = TotalNorm(m_adamGradients);
+            lr = options.lrHigh / 100;
+            UpdateWeightsAdam(lr, step, momentumBeta, rsmBeta);
+        });
 }
 
 // 融合 m_adamGradients / m_adamLearningRates（成员里保存的一阶动量与二阶矩）与

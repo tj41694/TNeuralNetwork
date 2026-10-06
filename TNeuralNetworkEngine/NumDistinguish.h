@@ -3,6 +3,7 @@
 #include "Sample.h"
 #include <atomic>
 #include <cstdint>
+#include <functional>
 #include <vector>
 using namespace std;
 
@@ -61,6 +62,11 @@ class DigitalDistinguish
                        double rsmRatio);
     // 初始化 Adam 的跨 step 状态：一阶动量与逐参数学习率，结构对齐 m_layers，数值零初始化.
     void InitAdamState();
+    // 两种训练方式共用的循环：采样 batch、前向、反向、遥测、周期评估、打印。
+    // optimize 负责本步优化器逻辑：消费 gradients、更新权重，并回填用于日志的 lr 与 gradNorm。
+    void RunTrainingLoop(const vector<Sample *> &samples, const TrainingOptions &options,
+                         const function<void(uint32_t step, vector<TnLayer *> &gradients, double &lr,
+                                             double &gradNorm)> &optimize);
 
   private:
     vector<TnLayer *> m_layers;
