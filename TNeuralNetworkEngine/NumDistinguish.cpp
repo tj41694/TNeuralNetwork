@@ -64,10 +64,19 @@ void DerivReLU(const TnVector &preActiveValues, TnVector &vec)
 
 void SoftMax(TnVector &input)
 {
+    if (input.empty())
+        return;
+    // 先减去最大值再取指数，避免预激活过大时 exp 溢出成 inf/inf 得到 NaN.
+    double maxVal = input[0];
+    for (double val : input)
+    {
+        if (val > maxVal)
+            maxVal = val;
+    }
     double total = 0;
     for (auto &val : input)
     {
-        val = exp(val);
+        val = exp(val - maxVal);
         total += val;
     }
     for (auto &val : input) // 归一化
@@ -234,14 +243,14 @@ void DigitalDistinguish::TrainingAdam(const vector<Sample *> &samples,
         }
 
         // 一个 batch 反向传播完毕：把成员里保存的动量与当前 batch 计算出的梯度融合.
-        FuseGradients(gradients, momentumBeta);
+        FuseGradients(gradients, momentumBeta, rsmBeta);
         for (auto *gradient : gradients)
             delete gradient;
 
         // 融合后的动量即为本步用于更新的梯度，取范数后再更新权重.
         double gradNorm = TotalNorm(m_adamGradients);
 
-        const double lr = step > options.lrDecayFromStep ? options.lrLow : options.lrHigh;
+        const double lr = options.lrHigh / 100;
         UpdateWeightsAdam(lr, step, momentumBeta, rsmBeta);
 
         double weightNorm = TotalNorm(m_layers);
@@ -292,19 +301,28 @@ void DigitalDistinguish::TrainingAdam(const vector<Sample *> &samples,
     }
 }
 
-// 融合 m_adamGradients（成员变量里保存的动量）与 currentGradients（当前 batch 计算的梯度）.
-// 只做 Adam 一阶动量的指数滑动平均 m = β·m + (1−β)·g；偏差修正不在这里做，
-// 否则修正后的值下一步会被再修正一次，逐级放大导致发散.
+// 融合 m_adamGradients / m_adamLearningRates（成员里保存的一阶动量与二阶矩）与
+// currentGradients（当前 batch 计算的梯度）：m = β1·m + (1−β1)·g，v = β2·v + (1−β2)·g².
+// 偏差修正不在这里做，否则修正后的值下一步会被再修正一次，逐级放大导致发散.
 void DigitalDistinguish::FuseGradients(const vector<TnLayer *> &currentGradients,
-                                       double momentumRatio)
+                                       double momentumRatio, double rsmRatio)
 {
     assert(m_adamGradients.size() == currentGradients.size());
+    assert(m_adamLearningRates.size() == currentGradients.size());
 
     const double oneMinusBeta = 1.0 - momentumRatio;
     for (size_t l = 0; l < m_adamGradients.size(); ++l)
     {
         *m_adamGradients[l] *= momentumRatio;
         m_adamGradients[l]->AddScaled(*currentGradients[l], oneMinusBeta);
+    }
+
+    // Adam 二阶矩：v = β2·v + (1−β2)·g²，逐参数保存平方梯度的指数滑动平均.
+    const double oneMinusRsm = 1.0 - rsmRatio;
+    for (size_t l = 0; l < m_adamLearningRates.size(); ++l)
+    {
+        *m_adamLearningRates[l] *= rsmRatio;
+        m_adamLearningRates[l]->AddScaled(currentGradients[l]->Square(), oneMinusRsm);
     }
 }
 
@@ -410,10 +428,20 @@ void DigitalDistinguish::UpdateWeights(const vector<TnLayer *> &gradients, doubl
 void DigitalDistinguish::UpdateWeightsAdam(double inputLr, uint32_t step, double momentumBeta,
                                            double rsmBeta)
 {
-    // Adam 偏差修正：m̂ = m / (1 − β^t)，等价于把本步学习率放大 1/(1−β^t).
-    const double correction = 1.0 - std::pow(momentumBeta, static_cast<double>(step));
-    const double lr = (correction > 0.0) ? inputLr / correction : inputLr;
-    UpdateWeights(m_adamGradients, lr);
+    // Adam 偏差修正：m̂ = m/(1−β1^t)、v̂ = v/(1−β2^t)，等价于把一阶动量按 1/(1−β1^t) 放大、
+    // 二阶矩按 1/(1−β2^t) 缩放到修正后的值.
+    const double mCorrection = 1.0 - std::pow(momentumBeta, static_cast<double>(step));
+    const double vCorrection = 1.0 - std::pow(rsmBeta, static_cast<double>(step));
+    const double lr = (mCorrection > 0.0) ? inputLr / mCorrection : inputLr;
+    const double vScale = (vCorrection > 0.0) ? 1.0 / vCorrection : 1.0;
+    const double eps = 1e-8;
+
+    // 逐参数自适应更新：w -= lr · m̂ / (sqrt(v̂) + eps).
+    for (size_t i = 0; i < m_layers.size(); ++i)
+    {
+        TnLayer vHat = *m_adamLearningRates[i] * vScale;
+        m_layers[i]->AddScaledNormalized(*m_adamGradients[i], vHat, -lr, eps);
+    }
 }
 
 DigitalDistinguish::~DigitalDistinguish()

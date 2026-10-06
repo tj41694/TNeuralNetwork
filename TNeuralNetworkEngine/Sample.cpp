@@ -230,6 +230,26 @@ void TnLayer::AddScaled(const TnLayer &other, double scale)
     }
 }
 
+void TnLayer::AddScaledNormalized(const TnLayer &moment, const TnLayer &secondMoment, double lr,
+                                  double eps)
+{
+    assert(matrix.size() == moment.matrix.size());
+    assert(matrix.size() == secondMoment.matrix.size());
+    assert(bias.size() == moment.bias.size());
+    assert(bias.size() == secondMoment.bias.size());
+    for (size_t r = 0; r < matrix.size(); ++r)
+    {
+        assert(matrix[r].size() == moment.matrix[r].size());
+        assert(matrix[r].size() == secondMoment.matrix[r].size());
+        bias[r] += lr * moment.bias[r] / (sqrt(secondMoment.bias[r]) + eps);
+        for (size_t c = 0; c < matrix[r].size(); ++c)
+        {
+            matrix[r][c] +=
+                lr * moment.matrix[r][c] / (sqrt(secondMoment.matrix[r][c]) + eps);
+        }
+    }
+}
+
 // 在前向传播里，此值代表当前层的激活值；在反向传播里，此值代表当前层临时计算出的梯度.
 const TnVector &TnLayer::Values() const
 {

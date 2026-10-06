@@ -31,6 +31,9 @@ class TnLayer
     void operator-=(const TnLayer &other);
     // this += scale * other，逐元素作用于权重矩阵与偏置.
     void AddScaled(const TnLayer &other, double scale);
+    // Adam 逐参数更新：this += scale * moment / (sqrt(secondMoment) + eps).
+    void AddScaledNormalized(const TnLayer &moment, const TnLayer &secondMoment, double lr,
+                             double eps);
     const TnVector &Values() const;
     TnVector &Values();
     void CalcGradient(const TnVector &prevLyActiveValues, const TnLayer &curLayer,
