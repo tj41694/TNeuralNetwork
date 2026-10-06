@@ -7,6 +7,7 @@
 #include <cmath>
 #include <condition_variable>
 #include <cstdio>
+#include <deque>
 #include <filesystem>
 #include <memory>
 #include <mutex>
@@ -51,64 +52,163 @@ void ForwardLayers(const vector<TnLayer *> &layers, const TnVector &input)
     }
 }
 
-// 统计一批样本的分类准确率（0~100）.
-double EvaluateAccuracy(const vector<TnLayer *> &layers, const vector<Sample *> &data)
-{
-    if (layers.empty() || data.empty())
-    {
-        return 0.0;
-    }
-    int correct = 0;
-    for (const auto *sample : data)
-    {
-        ForwardLayers(layers, *sample);
-        const TnVector &out = layers.back()->Values();
-        int best = 0;
-        for (int i = 1; i < (int) out.size(); ++i)
-        {
-            if (out[i] > out[best])
-            {
-                best = i;
-            }
-        }
-        if (best == sample->m_realValue)
-        {
-            ++correct;
-        }
-    }
-    return 100.0 * static_cast<double>(correct) / static_cast<double>(data.size());
-}
-
-// 周期性评估的工作线程：训练线程提交权重快照，本线程在独立网络上评估训练集与验证集，
-// 结果放回由训练线程写遥测。评估只读自己的快照，绝不触碰训练中的 m_layers，因此无需锁网络.
-class ValidationWorker
+// 周期性准确率评估的封装：训练循环每步调用 Tick()——按 metricsEvery 对当前权重做快照投递给评估线程，
+// 同时把评估线程（内部再按 CPU 数开并行子线程）算好的结果落盘；收尾调用 Finish()。
+// 训练线程只做快照与写文件，评估只读快照、绝不触碰训练中的 m_layers，因此无需锁网络。
+// recorder 为空 / 没有验证集 / metricsEvery<=0 时整体关闭，Tick/Finish 均为空操作。
+class PeriodicValidator
 {
   public:
-    ValidationWorker(const vector<Sample *> &trainData, const vector<Sample *> &testData)
-        : m_train(trainData), m_test(testData)
+    PeriodicValidator(Recorder *recorder, const TrainingOptions &options,
+                      const vector<Sample *> &trainData)
+        : m_recorder(recorder), m_metricsEvery(options.metricsEvery)
     {
-    }
-
-    ~ValidationWorker()
-    {
+        if (m_recorder == nullptr || options.validationData == nullptr ||
+            options.validationData->empty() || m_metricsEvery == 0)
         {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            m_stop = true;
+            return;
         }
-        m_cv.notify_all();
-        if (m_thread.joinable())
-        {
-            m_thread.join();
-        }
-        Clear(m_pending);
-    }
-
-    void Start()
-    {
+        m_train = &trainData;
+        m_test = options.validationData;
+        m_enabled = true;
+        // 给训练线程留一个核；上限 16 是因为网络很小，再多线程只剩调度与带宽开销.
+        const unsigned hc = std::thread::hardware_concurrency();
+        const unsigned usable = hc > 1 ? hc - 1 : 1;
+        m_parallelism = static_cast<int>(std::min<unsigned>(usable, 16));
         m_thread = std::thread([this]() { Run(); });
     }
 
-    // 训练线程调用：对当前权重做快照。若上一份还没评估完，丢弃旧的只保留最新，避免堆积.
+    ~PeriodicValidator()
+    {
+        StopAndJoin();
+        Clear(m_pending);
+    }
+
+    // 训练线程每步调用一次：按周期提交快照，并把已完成的结果全部落盘.
+    void Tick(uint32_t step, const vector<TnLayer *> &layers)
+    {
+        if (!m_enabled)
+        {
+            return;
+        }
+        if (step == 0 || step % m_metricsEvery == 0)
+        {
+            Submit(step, layers);
+        }
+        DrainResults();
+    }
+
+    // 训练收尾调用：让评估线程把手上的快照算完再退出，并落盘剩余结果.
+    void Finish()
+    {
+        if (!m_enabled)
+        {
+            return;
+        }
+        StopAndJoin();
+        DrainResults();
+    }
+
+  private:
+    struct Result
+    {
+        uint32_t step = 0;
+        double trainAcc = 0.0;
+        double testAcc = 0.0;
+    };
+
+    static void Clear(vector<TnLayer *> &layers)
+    {
+        for (auto *layer : layers)
+        {
+            delete layer;
+        }
+        layers.clear();
+    }
+
+    static vector<TnLayer *> CloneNet(const vector<TnLayer *> &snapshot)
+    {
+        vector<TnLayer *> net;
+        net.reserve(snapshot.size());
+        for (const auto *layer : snapshot)
+        {
+            net.push_back(new TnLayer(layer->Clone()));
+        }
+        return net;
+    }
+
+    static int CountCorrect(const vector<TnLayer *> &net, const vector<Sample *> &data,
+                            size_t begin, size_t end)
+    {
+        int correct = 0;
+        for (size_t i = begin; i < end; ++i)
+        {
+            ForwardLayers(net, *data[i]);
+            const TnVector &out = net.back()->Values();
+            int best = 0;
+            for (int j = 1; j < (int) out.size(); ++j)
+            {
+                if (out[j] > out[best])
+                {
+                    best = j;
+                }
+            }
+            if (best == data[i]->m_realValue)
+            {
+                ++correct;
+            }
+        }
+        return correct;
+    }
+
+    // 把训练集与验证集都按样本切成 m_parallelism 段，各段在独立网络副本上并行评估.
+    void EvaluateParallel(const vector<TnLayer *> &snapshot, double &trainAcc, double &testAcc)
+    {
+        const int parts = std::max(1, m_parallelism);
+        const size_t trainN = m_train->size();
+        const size_t testN = m_test->size();
+        vector<int> trainHits(parts, 0);
+        vector<int> testHits(parts, 0);
+
+        if (parts == 1)
+        {
+            vector<TnLayer *> net = CloneNet(snapshot);
+            trainHits[0] = CountCorrect(net, *m_train, 0, trainN);
+            testHits[0] = CountCorrect(net, *m_test, 0, testN);
+            Clear(net);
+        }
+        else
+        {
+            vector<std::thread> threads;
+            threads.reserve(parts);
+            for (int t = 0; t < parts; ++t)
+            {
+                threads.emplace_back([&, t]() {
+                    vector<TnLayer *> net = CloneNet(snapshot);
+                    trainHits[t] = CountCorrect(net, *m_train, trainN * t / parts,
+                                                trainN * (t + 1) / parts);
+                    testHits[t] = CountCorrect(net, *m_test, testN * t / parts,
+                                               testN * (t + 1) / parts);
+                    Clear(net);
+                });
+            }
+            for (auto &th : threads)
+            {
+                th.join();
+            }
+        }
+
+        int trainCorrect = 0;
+        int testCorrect = 0;
+        for (int t = 0; t < parts; ++t)
+        {
+            trainCorrect += trainHits[t];
+            testCorrect += testHits[t];
+        }
+        trainAcc = trainN ? 100.0 * static_cast<double>(trainCorrect) / static_cast<double>(trainN) : 0.0;
+        testAcc = testN ? 100.0 * static_cast<double>(testCorrect) / static_cast<double>(testN) : 0.0;
+    }
+
     void Submit(uint32_t step, const vector<TnLayer *> &layers)
     {
         vector<TnLayer *> snapshot;
@@ -127,23 +227,37 @@ class ValidationWorker
         m_cv.notify_one();
     }
 
-    // 训练线程调用：取走一个已完成的结果（非阻塞）.
+    void DrainResults()
+    {
+        uint32_t step = 0;
+        double trainAcc = 0.0;
+        double testAcc = 0.0;
+        while (TryPop(step, trainAcc, testAcc))
+        {
+            MetricRecord metrics;
+            metrics.step = step;
+            metrics.trainAcc = trainAcc;
+            metrics.testAcc = testAcc;
+            m_recorder->LogMetrics(metrics);
+        }
+    }
+
     bool TryPop(uint32_t &step, double &trainAcc, double &testAcc)
     {
         std::lock_guard<std::mutex> lock(m_mutex);
-        if (!m_hasResult)
+        if (m_results.empty())
         {
             return false;
         }
-        step = m_resultStep;
-        trainAcc = m_trainAcc;
-        testAcc = m_testAcc;
-        m_hasResult = false;
+        const Result r = m_results.front();
+        m_results.pop_front();
+        step = r.step;
+        trainAcc = r.trainAcc;
+        testAcc = r.testAcc;
         return true;
     }
 
-    // 训练结束时调用：让线程把手上这份快照评估完再退出，并返回最后一个结果.
-    bool StopAndDrain(uint32_t &step, double &trainAcc, double &testAcc)
+    void StopAndJoin()
     {
         {
             std::lock_guard<std::mutex> lock(m_mutex);
@@ -154,26 +268,6 @@ class ValidationWorker
         {
             m_thread.join();
         }
-        std::lock_guard<std::mutex> lock(m_mutex);
-        if (!m_hasResult)
-        {
-            return false;
-        }
-        step = m_resultStep;
-        trainAcc = m_trainAcc;
-        testAcc = m_testAcc;
-        m_hasResult = false;
-        return true;
-    }
-
-  private:
-    static void Clear(vector<TnLayer *> &layers)
-    {
-        for (auto *layer : layers)
-        {
-            delete layer;
-        }
-        layers.clear();
     }
 
     void Run()
@@ -192,31 +286,36 @@ class ValidationWorker
             m_hasPending = false;
             lock.unlock();
 
-            // 在一个不被打扰的局部网络上评估
-            const double trainAcc = EvaluateAccuracy(snapshot, m_train);
-            const double testAcc = EvaluateAccuracy(snapshot, m_test);
+            double trainAcc = 0.0;
+            double testAcc = 0.0;
+            EvaluateParallel(snapshot, trainAcc, testAcc);
             Clear(snapshot);
 
             lock.lock();
-            m_resultStep = step;
-            m_trainAcc = trainAcc;
-            m_testAcc = testAcc;
-            m_hasResult = true;
+            // 有界队列：主线程消费不及时时丢最旧的，保留最新结果.
+            if (m_results.size() >= kMaxResults)
+            {
+                m_results.pop_front();
+            }
+            m_results.push_back({step, trainAcc, testAcc});
         }
     }
 
-    const vector<Sample *> &m_train;
-    const vector<Sample *> &m_test;
+    static constexpr size_t kMaxResults = 8;
+
+    Recorder *m_recorder = nullptr;
+    const vector<Sample *> *m_train = nullptr;
+    const vector<Sample *> *m_test = nullptr;
+    uint32_t m_metricsEvery = 0;
+    bool m_enabled = false;
+    int m_parallelism = 1;
     std::thread m_thread;
     std::mutex m_mutex;
     std::condition_variable m_cv;
     bool m_stop = false;
     bool m_hasPending = false;
-    bool m_hasResult = false;
     uint32_t m_pendingStep = 0;
-    uint32_t m_resultStep = 0;
-    double m_trainAcc = 0.0;
-    double m_testAcc = 0.0;
+    std::deque<Result> m_results;
     vector<TnLayer *> m_pending;
 };
 } // namespace
@@ -286,6 +385,11 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, const Trainin
     Recorder *recorder = options.recorder;
     const LoggingPolicy *policy = (recorder != nullptr) ? &recorder->Policy() : nullptr;
     const uint32_t printEvery = (policy != nullptr) ? policy->printEvery : 0;
+
+    // 周期性准确率评估：封装在 PeriodicValidator 里（内部起独立线程 + 并行子线程）。
+    PeriodicValidator validator(recorder, options, samples);
+    // 先对初始权重评估一次，作为 step 0 基线.
+    validator.Tick(0, m_layers);
 
     const uint64_t startMs = SteadyMs();
     uint64_t samplesSeen = 0;
@@ -361,12 +465,16 @@ void DigitalDistinguish::Training(const vector<Sample *> &samples, const Trainin
             recorder->Heartbeat(step);
         }
 
+        validator.Tick(step, m_layers);
+
         if (printEvery == 0 || step % printEvery == 0 || step == options.totalSteps)
         {
             printf("Step: %u \t Samples: %llu \t lRate: %.6f \t Cost Value: %.5f\n", step,
                    static_cast<unsigned long long>(samplesSeen), lr, loss);
         }
     }
+
+    validator.Finish();
 }
 
 void DigitalDistinguish::InitAdamState()
@@ -400,15 +508,10 @@ void DigitalDistinguish::TrainingAdam(const vector<Sample *> &samples,
     const LoggingPolicy *policy = (recorder != nullptr) ? &recorder->Policy() : nullptr;
     const uint32_t printEvery = (policy != nullptr) ? policy->printEvery : 0;
 
-    // 周期性准确率评估跑在独立线程上：训练线程只做权重快照与写遥测，
-    // 评估在本线程之外完成，不会读写训练中的 m_layers.
-    std::unique_ptr<ValidationWorker> validator;
-    if (recorder != nullptr && options.validationData != nullptr &&
-        !options.validationData->empty() && options.metricsEvery > 0)
-    {
-        validator = std::make_unique<ValidationWorker>(samples, *options.validationData);
-        validator->Start();
-    }
+    // 周期性准确率评估：封装在 PeriodicValidator 里（内部起独立线程 + 并行子线程）。
+    PeriodicValidator validator(recorder, options, samples);
+    // 先对初始权重评估一次，作为 step 0 基线.
+    validator.Tick(0, m_layers);
 
     const uint64_t startMs = SteadyMs();
     uint64_t samplesSeen = 0;
@@ -484,26 +587,10 @@ void DigitalDistinguish::TrainingAdam(const vector<Sample *> &samples,
                     recorder->LogActivations(step, static_cast<uint32_t>(i), m_layers);
                 }
             }
-            if (validator)
-            {
-                if (step % options.metricsEvery == 0)
-                {
-                    validator->Submit(step, m_layers);
-                }
-                uint32_t metricStep = 0;
-                double trainAcc = 0.0;
-                double testAcc = 0.0;
-                if (validator->TryPop(metricStep, trainAcc, testAcc))
-                {
-                    MetricRecord metrics;
-                    metrics.step = metricStep;
-                    metrics.trainAcc = trainAcc;
-                    metrics.testAcc = testAcc;
-                    recorder->LogMetrics(metrics);
-                }
-            }
             recorder->Heartbeat(step);
         }
+
+        validator.Tick(step, m_layers);
 
         if (printEvery == 0 || step % printEvery == 0 || step == options.totalSteps)
         {
@@ -512,21 +599,7 @@ void DigitalDistinguish::TrainingAdam(const vector<Sample *> &samples,
         }
     }
 
-    // 收尾：让评估线程把手上的快照算完，补写最后一条准确率，避免短 run 一条都没有.
-    if (validator != nullptr && recorder != nullptr)
-    {
-        uint32_t metricStep = 0;
-        double trainAcc = 0.0;
-        double testAcc = 0.0;
-        if (validator->StopAndDrain(metricStep, trainAcc, testAcc))
-        {
-            MetricRecord metrics;
-            metrics.step = metricStep;
-            metrics.trainAcc = trainAcc;
-            metrics.testAcc = testAcc;
-            recorder->LogMetrics(metrics);
-        }
-    }
+    validator.Finish();
 }
 
 // 融合 m_adamGradients / m_adamLearningRates（成员里保存的一阶动量与二阶矩）与
