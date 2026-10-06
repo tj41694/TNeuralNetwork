@@ -50,6 +50,10 @@ class TnLayer
     // 返回一个新层，其权重矩阵与偏置均为当前层对应值的平方.
     TnLayer Square() const;
 
+    // 深拷贝权重矩阵、偏置与激活函数，得到一个结构与数值都相同的新层.
+    // 用于评估线程在独立网络上做前向，避免读写训练网络的共享状态.
+    TnLayer Clone() const;
+
   protected:
     vector<vector<double>> matrix;
     vector<double> bias;

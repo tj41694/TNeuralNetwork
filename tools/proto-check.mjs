@@ -76,6 +76,27 @@ async function scalarsChecks(label, srcBase, expectLines) {
   return src;
 }
 
+async function metricsChecks(label, srcBase) {
+  const src = new JsonlSource(`${srcBase}/metrics.jsonl`);
+  await src.poll();
+  if (src.missing) {
+    console.log(`  INFO  ${label}: 无 metrics.jsonl（该 run 未开启周期评估）`);
+    return;
+  }
+  check(`${label}: metrics 无坏行`, src.badLines === 0, `badLines=${src.badLines}`);
+  check(`${label}: metrics 字段完整且为有限数`,
+    src.items.length > 0 && src.items.every((r) => Number.isFinite(r.step) &&
+      Number.isFinite(r.trainAcc) && Number.isFinite(r.testAcc)));
+  check(`${label}: metrics 准确率都在 0~100`,
+    src.items.length > 0 && src.items.every((r) =>
+      r.trainAcc >= 0 && r.trainAcc <= 100 && r.testAcc >= 0 && r.testAcc <= 100));
+  check(`${label}: metrics step 严格递增`,
+    src.items.every((r, i) => i === 0 || r.step > src.items[i - 1].step));
+  const again = await src.poll();
+  check(`${label}: metrics 二次轮询无新数据也不重复`, again.added === 0,
+    `added=${again.added}`);
+}
+
 async function main() {
   console.log(`origin = ${origin}\nrun    = ${run}\nrunsDir= ${runsDir}\n`);
 
@@ -83,6 +104,7 @@ async function main() {
   const text = await fetchText(`${base}/scalars.jsonl`);
   const fileLines = text.split('\n').filter((l) => l.trim() !== '').length;
   await scalarsChecks('真实 run', base, fileLines);
+  await metricsChecks('真实 run', base);
 
   const histBytes = await fetchBytes(`${base}/histograms.bin`);
   const hist = new RecordSource(`${base}/histograms.bin`, {

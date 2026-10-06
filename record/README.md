@@ -9,7 +9,7 @@
 
 | 文件 | 作用 |
 |---|---|
-| `Recorder.h` / `Recorder.cpp` | 唯一的写入器。`BeginRun` / `LogScalars` / `LogHistograms` / `LogActivations` / `Heartbeat` / `EndRun` |
+| `Recorder.h` / `Recorder.cpp` | 唯一的写入器。`BeginRun` / `LogScalars` / `LogMetrics` / `LogHistograms` / `LogActivations` / `Heartbeat` / `EndRun` |
 
 ## 输出（写到 `runs/<exp>_<时间戳>/`）
 
@@ -18,6 +18,7 @@
 | `meta.json` | 一次性，含网络结构 / 超参 / seed / 采样策略 / probe 清单 | 1.4 KB |
 | `status.json` | 持续覆盖更新：state、lastStep、最终 accuracy、heartbeat、url | 190 B |
 | `scalars.jsonl` | 每步一行 JSON：step / loss / lr / gradNorm / weightNorm / updateRatio | 3.4 MB |
+| `metrics.jsonl` | 每 100 步一行 JSON：step / trainAcc / testAcc（独立线程评估后由训练线程写入） | 15 KB |
 | `histograms.bin` | 定长记录：头 88 B + 每条 1060 B（step + 每层 min/max/64 个 counts） | 445 KB |
 | `activations.bin` | 定长记录：头 32 B + 每条 300 B（step + 各层激活值） | 504 KB |
 | `probe_inputs.bin` | 一次性：16 个 probe 样本的 784 个 float | 12.5 KB |
@@ -26,6 +27,7 @@
 
 1. **只有训练线程写**。HTTP 服务永远只读这些文件，所以两边不需要任何锁。
    要保住这条，改动时不要在服务端加写操作、也不要在 `Recorder` 里回调训练对象。
+   周期性准确率虽然由独立线程评估，但结果只回传给训练线程，仍由训练线程调用 `LogMetrics` 落盘。
 2. **要 `fflush`，不要 `fsync`**。服务和训练在同一台机器上共享 page cache，`fflush` 之后读者立刻可见；
    `FlushFileBuffers` 只影响掉电安全，这里是纯浪费。但**没有 `fflush` 页面就永远不动**。
    flush 按时间合并（默认 100 ms），并在 `EndRun` 与 Ctrl+C 路径强制刷一次。

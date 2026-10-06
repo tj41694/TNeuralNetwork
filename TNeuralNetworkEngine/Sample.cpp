@@ -307,6 +307,14 @@ TnLayer TnLayer::Square() const
     return result;
 }
 
+TnLayer TnLayer::Clone() const
+{
+    TnLayer result(*this);
+    result.matrix = matrix;
+    result.bias = bias;
+    return result;
+}
+
 void TnLayer::CalcGradient(const TnVector &prevLyActiveValues, const TnLayer &curLayer,
                            TnVector *preGradients)
 {

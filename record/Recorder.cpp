@@ -226,6 +226,10 @@ Recorder::~Recorder()
     {
         std::fclose(m_activations);
     }
+    if (m_metrics != nullptr)
+    {
+        std::fclose(m_metrics);
+    }
 }
 
 bool Recorder::BeginRun(const std::string &runsRoot, const RunMeta &meta,
@@ -271,7 +275,9 @@ bool Recorder::BeginRun(const std::string &runsRoot, const RunMeta &meta,
     m_scalars = OpenSharedWrite(dir + "/scalars.jsonl");
     m_histograms = OpenSharedWrite(dir + "/histograms.bin");
     m_activations = OpenSharedWrite(dir + "/activations.bin");
-    if (m_scalars == nullptr || m_histograms == nullptr || m_activations == nullptr)
+    m_metrics = OpenSharedWrite(dir + "/metrics.jsonl");
+    if (m_scalars == nullptr || m_histograms == nullptr || m_activations == nullptr ||
+        m_metrics == nullptr)
     {
         std::printf("Recorder: 无法创建数据文件于 %s\n", dir.c_str());
         return false;
@@ -340,6 +346,19 @@ void Recorder::LogScalars(const ScalarRecord &record)
                   FmtNumber(record.gradNorm).c_str(), FmtNumber(record.weightNorm).c_str(),
                   FmtNumber(record.updateRatio).c_str());
     std::fwrite(buf, 1, std::strlen(buf), m_scalars);
+    FlushIfDue(false);
+}
+
+void Recorder::LogMetrics(const MetricRecord &record)
+{
+    if (m_metrics == nullptr)
+    {
+        return;
+    }
+    char buf[256];
+    std::snprintf(buf, sizeof(buf), "{\"step\":%u,\"trainAcc\":%s,\"testAcc\":%s}\n", record.step,
+                  FmtNumber(record.trainAcc).c_str(), FmtNumber(record.testAcc).c_str());
+    std::fwrite(buf, 1, std::strlen(buf), m_metrics);
     FlushIfDue(false);
 }
 
@@ -481,6 +500,11 @@ void Recorder::EndRun(const char *state, const std::string &error)
         std::fclose(m_activations);
         m_activations = nullptr;
     }
+    if (m_metrics != nullptr)
+    {
+        std::fclose(m_metrics);
+        m_metrics = nullptr;
+    }
     if (!m_runDir.empty())
     {
         WriteStatus(m_lastStep, state, error);
@@ -527,6 +551,10 @@ void Recorder::FlushIfDue(bool force)
     if (m_activations != nullptr)
     {
         std::fflush(m_activations);
+    }
+    if (m_metrics != nullptr)
+    {
+        std::fflush(m_metrics);
     }
     m_lastFlushMs = now;
 }
@@ -619,6 +647,7 @@ void Recorder::WriteMeta(const RunMeta &meta, const std::vector<ProbeRef> &probe
     j += "  \"logging\": {\"scalarsEvery\": " + std::to_string(m_policy.scalarsEvery) +
          ", \"histEvery\": " + std::to_string(m_policy.histEvery) +
          ", \"actEvery\": " + std::to_string(m_policy.actEvery) +
+         ", \"metricsEvery\": " + std::to_string(m_policy.metricsEvery) +
          ", \"histBins\": " + std::to_string(m_policy.histBins) + ", \"histRange\": [";
     for (size_t i = 0; i < meta.layers.size(); ++i)
     {
@@ -664,6 +693,11 @@ void Recorder::WriteMeta(const RunMeta &meta, const std::vector<ProbeRef> &probe
     j += ", {\"key\": \"gradNorm\", \"label\": \"Grad norm\", \"logScale\": true}";
     j += ", {\"key\": \"weightNorm\", \"label\": \"Weight norm\", \"logScale\": false}";
     j += ", {\"key\": \"updateRatio\", \"label\": \"Update ratio\", \"logScale\": true}";
+    j += "],\n";
+
+    j += "  \"metricFields\": [";
+    j += "{\"key\": \"trainAcc\", \"label\": \"Train acc\", \"unit\": \"%\"}";
+    j += ", {\"key\": \"testAcc\", \"label\": \"Val acc\", \"unit\": \"%\"}";
     j += "]\n";
     j += "}\n";
 

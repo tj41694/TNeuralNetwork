@@ -27,6 +27,10 @@ struct TrainingOptions
     Recorder *recorder = nullptr;
     // 参与激活快照的固定样本；为空则不记录激活
     const vector<Sample *> *probes = nullptr;
+    // 周期性评估用的验证集（通常是测试集）；为空则不做周期性准确率评估
+    const vector<Sample *> *validationData = nullptr;
+    // 每隔多少步在独立线程上对训练集与验证集各评估一次；<=0 或没有 validationData 则关闭
+    uint32_t metricsEvery = 100;
     // 置位后在当前 step 结束时正常收尾
     const std::atomic<bool> *stopRequested = nullptr;
 };

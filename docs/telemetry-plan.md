@@ -21,7 +21,7 @@
 - 它用句柄级 `GetFileSizeEx` 决定内容长度（不是可能陈旧的 NTFS 目录项），所以训练进程边写边读没问题；
   读取以 `FILE_SHARE_READ | FILE_SHARE_WRITE` 打开，与写入方的 `fopen(..., "ab")` 兼容。
 - 训练 21000 步约 2 分钟（Release），最终测试集准确率 94.12%。
-- `tools/proto-check.mjs` 23 项、`tools/charts-check.mjs` 13 项全部通过。
+- `tools/proto-check.mjs` 26 项、`tools/charts-check.mjs` 13 项全部通过。
 
 运行方式（所有命令的工作目录都是 `build/`，见 `AGENTS.md`）。训练与 Web 服务是两个独立进程：
 
@@ -36,6 +36,7 @@ node ..\tools\proto-check.mjs http://127.0.0.1:5108 <runName> ..\runs
 **目标**
 
 - 每次权重更新（**1 step = 1 个 batch**）落盘：`loss` / `lr` / `gradNorm` / `weightNorm`。
+- 每 100 步：在**独立线程**上对训练集与验证集各评估一次准确率，落盘 `metrics.jsonl`。
 - 每 50 步：各层权重直方图。
 - 每 200 步：固定 probe 样本的各层激活快照。
 - 内嵌 HTTP 服务以**只读**方式把 `runs/` 提供给浏览器，支持 Range 增量读取。
@@ -84,6 +85,7 @@ D:\projects\TNeuralNetwork\            # 仓库根
       meta.json                        # 一次性，原子替换写入
       status.json                      # 持续更新，原子替换写入
       scalars.jsonl                    # 追加，文本
+      metrics.jsonl                    # 追加，文本：周期性训练/验证准确率
       histograms.bin                   # 追加，定长记录
       activations.bin                  # 追加，定长记录
       probe_inputs.bin                 # 一次性，参与激活采样的样本像素
@@ -114,9 +116,10 @@ D:\projects\TNeuralNetwork\            # 仓库根
 | `dataset` | `{path, trainCount, testCount}` |
 | `network` | `{cost, layers:[{in, out, activation}]}` |
 | `hyperparams` | `{batchSize, totalSteps, lrSchedule:[{fromStep, value}]}` |
-| `logging` | `{scalarsEvery:1, histEvery:50, actEvery:200, histBins:64, histRange:[[min,max] × 层数]}` |
+| `logging` | `{scalarsEvery:1, histEvery:50, actEvery:200, metricsEvery:100, histBins:64, histRange:[[min,max] × 层数]}` |
 | `probes` | `[{index, label, source}]`，数组顺序即 `activations.bin` 内的 probe 顺序 |
 | `scalarFields` | 每个标量的 `{key, label, unit, logScale}`，让前端不写死字段名 |
+| `metricFields` | 周期性准确率的 `{key, label, unit}`（当前 `trainAcc` / `testAcc`），供准确率曲线用 |
 
 `histRange` 是**每层各自**的固定范围，**必须在这里定死、全 run 不变**（原因见 §9 坑 5）。
 默认按层给 `1.0 / 1.5 / 1.5 / 2.0`，来由是 He/Kaiming 初始化下的一次 25000 步实测：
@@ -166,6 +169,20 @@ D:\projects\TNeuralNetwork\            # 仓库根
 - 每层单独的范数可作为可选的 `perLayer` 数组后续再加。
 - 数字用 `%.6g` 之类的短表示；25000 行约 2.7 MB，完全可接受。
 - 不要用 CSV：JSONL 加字段不破坏旧解析器，CSV 加列会让位置解析全崩。
+
+### 4.4.1 `metrics.jsonl`（周期性准确率）
+
+每 `metricsEvery`（默认 100）步一行，一行一个 JSON 对象：
+
+```json
+{"step":100,"trainAcc":88.5,"testAcc":87.2}
+```
+
+- `trainAcc` / `testAcc`：该 step 的权重在训练集 / 验证集上的分类准确率，单位百分数（0~100）。
+- 评估在**独立线程**上进行：训练线程只把当前权重深拷贝成一份快照并投递，评估线程在只读快照上跑前向，
+  结果回传给训练线程写成这一行。因此评估既不读写训练中的 `m_layers`，也不违反"只有训练线程写文件"。
+- 评估线程来不及完成时，新快照会**覆盖**尚未评估的旧快照（只保留最新），所以 `metrics.jsonl` 的 step
+  间隔通常大于等于 `metricsEvery`，前端按 step 画点即可，不要假设固定步长。
 
 ### 4.5 `histograms.bin`
 
@@ -351,7 +368,7 @@ append-only 的文件，任何时刻 `[0, size)` 的内容都不变，所以 off
 ### 8.1 2D canvas 与 DOM（默认选择）
 
 - **坐标轴、刻度、图例、文字一律不用 WebGL 画**，用 DOM 或叠一层 2D canvas。否则要实现 SDF 字体图集，纯属浪费时间。
-- **折线面板（loss / lr / gradNorm / weightNorm）默认用 2D canvas**：代码量小、文字方便、25000 个点毫无压力。
+- **折线面板（loss / 准确率 / gradNorm / weightNorm / updateRatio）默认用 2D canvas**：代码量小、文字方便、25000 个点毫无压力。
 - WebGL2 用在：点数极大（阈值约 20 万点）、直方图热力图、激活热力图，以及后续的 3D 展示。
 
 ### 8.2 WebGL2 注意事项
@@ -415,9 +432,9 @@ M0–M6 均已完成并通过验证（见 §0）。其中 M0 改了做法：没�
 
 ## 11. 未决 / 后续
 
-- **accuracy 曲线 / 混淆矩阵**：训练结束的最终准确率已写进 `status.json` 的 `accuracy` 并在页面顶部展示；
-  但它只在收尾时评估一次，所以**页面上还没有准确率曲线**。要画曲线需要周期性评估（插在 `UpdateWeights` 之后是安全的，
-  不会破坏梯度累加），建议另放低频的 `metrics.jsonl`。
+- **accuracy 曲线 / 混淆矩阵**：周期性训练/验证准确率曲线已实现，写进 `metrics.jsonl`（见 §4.4.1）并在页面上绘制；
+  训练收尾的最终测试集准确率仍写 `status.json` 的 `accuracy` 并在顶部展示。混淆矩阵尚未做。
+- **评估线程**：周期性评估跑在独立线程上、基于权重快照，见 §4.4.1；未来若引入 per-class 指标可直接复用这条链路。
 - **激活前 z**：访问器已经加上（`TnLayer::PreActiveValues()`），但记录格式里还没用。
 - **checkpoint 格式与生命周期**：独立设计，不与遥测混用。
 - **权重轨迹采样**：在固定随机索引上记录一小撮权重随 step 的变化，比直方图更适合做 3D/轨迹展示，成本极低。

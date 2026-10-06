@@ -21,6 +21,7 @@ const state = {
   meta: null,
   status: null,
   scalars: null,
+  metrics: null,
   hist: null,
   act: null,
   probeInputs: null,
@@ -51,12 +52,15 @@ function schedule(delay) {
 
 function buildCharts(meta) {
   const fields = new Map((meta.scalarFields || []).map((f) => [f.key, f]));
+  const mfields = new Map((meta.metricFields || []).map((f) => [f.key, f]));
   const label = (k, d) => (fields.get(k) ? fields.get(k).label : d);
   const isLog = (k, d) => (fields.has(k) ? !!fields.get(k).logScale : d);
+  const mlabel = (k, d) => (mfields.get(k) ? mfields.get(k).label : d);
 
   const defs = [
     {
       canvas: el('loss'),
+      source: 'scalars',
       log: isLog('loss', true),
       series: [
         {
@@ -71,12 +75,17 @@ function buildCharts(meta) {
       ],
     },
     {
-      canvas: el('lr'),
-      log: isLog('lr', false),
-      series: [{ key: 'lr', label: label('lr', 'lr'), color: '#a78bfa', valueOf: (r) => r.lr }],
+      canvas: el('acc'),
+      source: 'metrics',
+      log: false,
+      series: [
+        { key: 'trainAcc', label: mlabel('trainAcc', 'train acc'), color: '#34d399', valueOf: (r) => r.trainAcc },
+        { key: 'testAcc', label: mlabel('testAcc', 'val acc'), color: '#f87171', valueOf: (r) => r.testAcc },
+      ],
     },
     {
       canvas: el('norm'),
+      source: 'scalars',
       log: isLog('gradNorm', true),
       series: [
         { key: 'gradNorm', label: label('gradNorm', 'grad'), color: '#f87171', valueOf: (r) => r.gradNorm },
@@ -85,6 +94,7 @@ function buildCharts(meta) {
     },
     {
       canvas: el('ratio'),
+      source: 'scalars',
       log: isLog('updateRatio', true),
       series: [
         { key: 'updateRatio', label: label('updateRatio', 'update ratio'), color: '#fbbf24', valueOf: (r) => r.updateRatio },
@@ -92,14 +102,15 @@ function buildCharts(meta) {
     },
   ];
 
-  state.charts = defs.map(
-    (d) =>
-      new TimeSeriesChart(d.canvas, {
-        series: d.series,
-        logY: d.log,
-        totalSteps: (meta.hyperparams && meta.hyperparams.totalSteps) || 0,
-      }),
-  );
+  state.charts = defs.map((d) => {
+    const chart = new TimeSeriesChart(d.canvas, {
+      series: d.series,
+      logY: d.log,
+      totalSteps: (meta.hyperparams && meta.hyperparams.totalSteps) || 0,
+    });
+    chart.source = d.source || 'scalars';
+    return chart;
+  });
 }
 
 function setupHeatmap(meta) {
@@ -236,10 +247,17 @@ function updateHeader() {
     setPill('疑似停滞', 'warn');
   }
 
-  // 最终验证准确率：训练结束时算一次，写进 status.json；未评估时是 null.
-  el('accuracy').textContent = Number.isFinite(st.accuracy)
-    ? `准确率 ${st.accuracy.toFixed(2)}%`
-    : '';
+  // 周期性准确率来自 metrics.jsonl（训练集 / 验证集）；没有时退回 status.json 的最终测试集准确率.
+  const metricRows = (state.metrics && state.metrics.items) || [];
+  const lastMetric = metricRows.length ? metricRows[metricRows.length - 1] : null;
+  if (lastMetric && Number.isFinite(lastMetric.testAcc)) {
+    el('accuracy').textContent =
+      `准确率 训练 ${lastMetric.trainAcc.toFixed(2)}% · 验证 ${lastMetric.testAcc.toFixed(2)}%`;
+  } else {
+    el('accuracy').textContent = Number.isFinite(st.accuracy)
+      ? `准确率 ${st.accuracy.toFixed(2)}%`
+      : '';
+  }
 
   const bad = (state.scalars && state.scalars.badLines) || 0;
   el('warn').textContent = bad > 0 ? `已跳过 ${bad} 行无法解析的数据` : '';
@@ -293,24 +311,31 @@ async function refreshState() {
 async function pollAll() {
   if (!state.scalars) return;
   try {
-    const [a, b, c] = await Promise.all([state.scalars.poll(), state.hist.poll(), state.act.poll()]);
+    const [a, b, c, d] = await Promise.all([
+      state.scalars.poll(),
+      state.hist.poll(),
+      state.act.poll(),
+      state.metrics ? state.metrics.poll() : Promise.resolve({ added: 0, reset: false }),
+    ]);
     state.failures = 0;
 
-    if (a.reset || b.reset || c.reset) onReset();
+    if (a.reset || b.reset || c.reset || d.reset) onReset();
 
     if (b.added > 0 && state.heatmap) {
       pushHistRecords(state.hist.records.length - b.added);
     }
 
-    if (a.added > 0) {
-      for (const ch of state.charts) ch.setRows(state.scalars.items);
+    if (a.added > 0 || d.added > 0) {
+      for (const ch of state.charts) {
+        ch.setRows(ch.source === 'metrics' ? state.metrics.items : state.scalars.items);
+      }
     }
 
     await refreshState();
     updateHeader();
     drawAll();
 
-    const gotNew = a.added + b.added + c.added > 0;
+    const gotNew = a.added + b.added + c.added + d.added > 0;
     const running = (state.status && state.status.state) === 'running';
     state.interval = gotNew ? 300 : running ? 800 : 3000;
   } catch (err) {
@@ -334,6 +359,7 @@ async function loadRun(name) {
 
   const base = `${state.origin}/runs/${encodeURIComponent(name)}`;
   state.scalars = new JsonlSource(`${base}/scalars.jsonl`);
+  state.metrics = new JsonlSource(`${base}/metrics.jsonl`);
   state.hist = new RecordSource(`${base}/histograms.bin`, {
     parseHeader: parseHistogramHeader,
     decodeRecord: decodeHistogramRecord,
@@ -348,7 +374,12 @@ async function loadRun(name) {
   setupProbeSelector(state.meta);
   el('origin').textContent = state.origin;
 
-  await Promise.all([state.scalars.poll(), state.hist.open(), state.act.open()]);
+  await Promise.all([
+    state.scalars.poll(),
+    state.metrics.poll(),
+    state.hist.open(),
+    state.act.open(),
+  ]);
   if (state.hist.records.length && state.heatmap) {
     pushHistRecords(0);
   }
@@ -361,7 +392,9 @@ async function loadRun(name) {
     state.probeInputs = null;
   }
 
-  for (const ch of state.charts) ch.setRows(state.scalars.items);
+  for (const ch of state.charts) {
+    ch.setRows(ch.source === 'metrics' ? state.metrics.items : state.scalars.items);
+  }
   updateHeader();
   drawAll(true);
 }

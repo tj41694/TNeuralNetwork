@@ -17,7 +17,8 @@
 namespace
 {
 const char *const kDataFiles[] = {"meta.json",           "status.json",   "scalars.jsonl",
-                                  "histograms.bin",      "activations.bin", "probe_inputs.bin"};
+                                  "metrics.jsonl",       "histograms.bin", "activations.bin",
+                                  "probe_inputs.bin"};
 
 bool ReadFileText(const std::string &path, std::string &out)
 {

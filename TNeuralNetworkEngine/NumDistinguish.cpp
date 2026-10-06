@@ -5,9 +5,13 @@
 #include <cassert>
 #include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstdio>
 #include <filesystem>
+#include <memory>
+#include <mutex>
 #include <string>
+#include <thread>
 
 namespace
 {
@@ -35,6 +39,186 @@ double TotalNorm(const vector<TnLayer *> &layers)
     }
     return sqrt(sum);
 }
+
+// 在给定的一串层上跑一次前向，不依赖 DigitalDistinguish 的成员状态.
+void ForwardLayers(const vector<TnLayer *> &layers, const TnVector &input)
+{
+    const TnVector *in = &input;
+    for (auto *layer : layers)
+    {
+        *layer *= *in;
+        in = &layer->Values();
+    }
+}
+
+// 统计一批样本的分类准确率（0~100）.
+double EvaluateAccuracy(const vector<TnLayer *> &layers, const vector<Sample *> &data)
+{
+    if (layers.empty() || data.empty())
+    {
+        return 0.0;
+    }
+    int correct = 0;
+    for (const auto *sample : data)
+    {
+        ForwardLayers(layers, *sample);
+        const TnVector &out = layers.back()->Values();
+        int best = 0;
+        for (int i = 1; i < (int) out.size(); ++i)
+        {
+            if (out[i] > out[best])
+            {
+                best = i;
+            }
+        }
+        if (best == sample->m_realValue)
+        {
+            ++correct;
+        }
+    }
+    return 100.0 * static_cast<double>(correct) / static_cast<double>(data.size());
+}
+
+// 周期性评估的工作线程：训练线程提交权重快照，本线程在独立网络上评估训练集与验证集，
+// 结果放回由训练线程写遥测。评估只读自己的快照，绝不触碰训练中的 m_layers，因此无需锁网络.
+class ValidationWorker
+{
+  public:
+    ValidationWorker(const vector<Sample *> &trainData, const vector<Sample *> &testData)
+        : m_train(trainData), m_test(testData)
+    {
+    }
+
+    ~ValidationWorker()
+    {
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_stop = true;
+        }
+        m_cv.notify_all();
+        if (m_thread.joinable())
+        {
+            m_thread.join();
+        }
+        Clear(m_pending);
+    }
+
+    void Start()
+    {
+        m_thread = std::thread([this]() { Run(); });
+    }
+
+    // 训练线程调用：对当前权重做快照。若上一份还没评估完，丢弃旧的只保留最新，避免堆积.
+    void Submit(uint32_t step, const vector<TnLayer *> &layers)
+    {
+        vector<TnLayer *> snapshot;
+        snapshot.reserve(layers.size());
+        for (const auto *layer : layers)
+        {
+            snapshot.push_back(new TnLayer(layer->Clone()));
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            Clear(m_pending);
+            m_pending = std::move(snapshot);
+            m_pendingStep = step;
+            m_hasPending = true;
+        }
+        m_cv.notify_one();
+    }
+
+    // 训练线程调用：取走一个已完成的结果（非阻塞）.
+    bool TryPop(uint32_t &step, double &trainAcc, double &testAcc)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_hasResult)
+        {
+            return false;
+        }
+        step = m_resultStep;
+        trainAcc = m_trainAcc;
+        testAcc = m_testAcc;
+        m_hasResult = false;
+        return true;
+    }
+
+    // 训练结束时调用：让线程把手上这份快照评估完再退出，并返回最后一个结果.
+    bool StopAndDrain(uint32_t &step, double &trainAcc, double &testAcc)
+    {
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_stop = true;
+        }
+        m_cv.notify_all();
+        if (m_thread.joinable())
+        {
+            m_thread.join();
+        }
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_hasResult)
+        {
+            return false;
+        }
+        step = m_resultStep;
+        trainAcc = m_trainAcc;
+        testAcc = m_testAcc;
+        m_hasResult = false;
+        return true;
+    }
+
+  private:
+    static void Clear(vector<TnLayer *> &layers)
+    {
+        for (auto *layer : layers)
+        {
+            delete layer;
+        }
+        layers.clear();
+    }
+
+    void Run()
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        while (true)
+        {
+            m_cv.wait(lock, [this]() { return m_stop || m_hasPending; });
+            if (!m_hasPending)
+            {
+                // 停止且没有待评估的快照，退出
+                break;
+            }
+            vector<TnLayer *> snapshot = std::move(m_pending);
+            const uint32_t step = m_pendingStep;
+            m_hasPending = false;
+            lock.unlock();
+
+            // 在一个不被打扰的局部网络上评估
+            const double trainAcc = EvaluateAccuracy(snapshot, m_train);
+            const double testAcc = EvaluateAccuracy(snapshot, m_test);
+            Clear(snapshot);
+
+            lock.lock();
+            m_resultStep = step;
+            m_trainAcc = trainAcc;
+            m_testAcc = testAcc;
+            m_hasResult = true;
+        }
+    }
+
+    const vector<Sample *> &m_train;
+    const vector<Sample *> &m_test;
+    std::thread m_thread;
+    std::mutex m_mutex;
+    std::condition_variable m_cv;
+    bool m_stop = false;
+    bool m_hasPending = false;
+    bool m_hasResult = false;
+    uint32_t m_pendingStep = 0;
+    uint32_t m_resultStep = 0;
+    double m_trainAcc = 0.0;
+    double m_testAcc = 0.0;
+    vector<TnLayer *> m_pending;
+};
 } // namespace
 
 void Sigmoid(TnVector &input)
@@ -216,6 +400,16 @@ void DigitalDistinguish::TrainingAdam(const vector<Sample *> &samples,
     const LoggingPolicy *policy = (recorder != nullptr) ? &recorder->Policy() : nullptr;
     const uint32_t printEvery = (policy != nullptr) ? policy->printEvery : 0;
 
+    // 周期性准确率评估跑在独立线程上：训练线程只做权重快照与写遥测，
+    // 评估在本线程之外完成，不会读写训练中的 m_layers.
+    std::unique_ptr<ValidationWorker> validator;
+    if (recorder != nullptr && options.validationData != nullptr &&
+        !options.validationData->empty() && options.metricsEvery > 0)
+    {
+        validator = std::make_unique<ValidationWorker>(samples, *options.validationData);
+        validator->Start();
+    }
+
     const uint64_t startMs = SteadyMs();
     uint64_t samplesSeen = 0;
 
@@ -290,6 +484,24 @@ void DigitalDistinguish::TrainingAdam(const vector<Sample *> &samples,
                     recorder->LogActivations(step, static_cast<uint32_t>(i), m_layers);
                 }
             }
+            if (validator)
+            {
+                if (step % options.metricsEvery == 0)
+                {
+                    validator->Submit(step, m_layers);
+                }
+                uint32_t metricStep = 0;
+                double trainAcc = 0.0;
+                double testAcc = 0.0;
+                if (validator->TryPop(metricStep, trainAcc, testAcc))
+                {
+                    MetricRecord metrics;
+                    metrics.step = metricStep;
+                    metrics.trainAcc = trainAcc;
+                    metrics.testAcc = testAcc;
+                    recorder->LogMetrics(metrics);
+                }
+            }
             recorder->Heartbeat(step);
         }
 
@@ -297,6 +509,22 @@ void DigitalDistinguish::TrainingAdam(const vector<Sample *> &samples,
         {
             printf("Step: %u \t Samples: %llu \t lRate: %.6f \t Cost Value: %.5f\n", step,
                    static_cast<unsigned long long>(samplesSeen), lr, loss);
+        }
+    }
+
+    // 收尾：让评估线程把手上的快照算完，补写最后一条准确率，避免短 run 一条都没有.
+    if (validator != nullptr && recorder != nullptr)
+    {
+        uint32_t metricStep = 0;
+        double trainAcc = 0.0;
+        double testAcc = 0.0;
+        if (validator->StopAndDrain(metricStep, trainAcc, testAcc))
+        {
+            MetricRecord metrics;
+            metrics.step = metricStep;
+            metrics.trainAcc = trainAcc;
+            metrics.testAcc = testAcc;
+            recorder->LogMetrics(metrics);
         }
     }
 }

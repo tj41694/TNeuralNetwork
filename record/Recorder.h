@@ -23,6 +23,8 @@ struct LoggingPolicy
     uint32_t heartbeatMs = 2000;
     uint32_t flushMs = 100;
     uint32_t printEvery = 100;
+    // 每隔多少步写一行周期性评估准确率（metrics.jsonl）；0 表示不写.
+    uint32_t metricsEvery = 100;
 
     double RangeFor(size_t layer) const
     {
@@ -61,6 +63,14 @@ struct ScalarRecord
     double updateRatio = 0;
 };
 
+// 周期性评估结果（每 metricsEvery 步一行，写进 metrics.jsonl）.
+struct MetricRecord
+{
+    uint32_t step = 0;
+    double trainAcc = 0;
+    double testAcc = 0;
+};
+
 struct RunMeta
 {
     std::string expName;
@@ -92,6 +102,7 @@ class Recorder
                   const std::vector<std::vector<double>> &probePixels, uint32_t probeWidth);
 
     void LogScalars(const ScalarRecord &record);
+    void LogMetrics(const MetricRecord &record);
     void LogHistograms(uint32_t step, const std::vector<TnLayer *> &layers);
     void LogActivations(uint32_t step, uint32_t probeIndex, const std::vector<TnLayer *> &layers);
     void Heartbeat(uint32_t lastStep);
@@ -131,6 +142,7 @@ class Recorder
     LoggingPolicy m_policy;
     RunMeta m_meta;
     FILE *m_scalars = nullptr;
+    FILE *m_metrics = nullptr;
     FILE *m_histograms = nullptr;
     FILE *m_activations = nullptr;
     std::vector<float> m_histCounts;

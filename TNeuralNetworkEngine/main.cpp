@@ -146,6 +146,9 @@ int RunTraining(const Options &opt)
     training.totalSteps = opt.steps;
     training.recorder = recording ? &recorder : nullptr;
     training.probes = probeSamples.empty() ? nullptr : &probeSamples;
+    // 周期性评估：每 100 步在独立线程上对训练集与测试集各算一次准确率，写进 metrics.jsonl.
+    training.validationData = &testDatas;
+    training.metricsEvery = 100;
     training.stopRequested = &g_stopRequested;
 
     DigitalDistinguish model;
