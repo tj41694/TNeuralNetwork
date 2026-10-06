@@ -1,7 +1,9 @@
 # web/ —— 训练监控的整个 Web 功能
 
-这个目录自洽地装下"浏览器看训练"所需的一切：**服务端 + 前端 + 第三方依赖**。
-它只读 `runs/` 下的文件，不引用任何训练对象，所以和训练线程之间不需要锁。
+这个目录自洽地装下"浏览器看训练"所需的一切：**入口 + 服务端 + 前端 + 第三方依赖**。
+它只读 `runs/` 下的文件，不引用任何训练对象，所以和训练之间不需要锁。
+它编译成一个**独立于训练的 exe `NumDistinguishWeb`**（入口 `main.cpp`）：训练进程 `NumDistinguish`
+只写 `runs/`，服务进程只读 `runs/`，两者不共享内存，只通过文件通信。
 
 完整规格（端点约定、增量协议、渲染取舍、坑清单）在 [`../docs/telemetry-plan.md`](../docs/telemetry-plan.md)；
 这里只讲"这个目录是什么、改它要注意什么"。
@@ -12,8 +14,8 @@
 web/
   # 会通过 HTTP 提供给浏览器的静态资源
   index.html  style.css  app.js  protocol.js  charts.js  gl.js  package.json
-  # 服务端（C++，不通过 HTTP 提供）
-  DashboardServer.h  DashboardServer.cpp
+  # 入口与服务端（C++，不通过 HTTP 提供）
+  main.cpp  DashboardServer.h  DashboardServer.cpp
   # 第三方依赖（不通过 HTTP 提供）
   httplib/httplib.h + LICENSE        cpp-httplib v0.58.0（MIT）
 ```
@@ -32,7 +34,7 @@ web/
   和 `Cache-Control: no-store`（不禁缓存，浏览器的旧 body 会让增量 offset 算错）。
 - 只绑 `127.0.0.1`：既避免 Windows 防火墙弹窗，也避免把 `runs/` 暴露到局域网。
 - `run` 参数与资源名都做了字符白名单校验，且挂载点自身有规范化 + 前缀校验，防目录穿越。
-- 端口传 0 让系统分配，实际 URL 会打印到控制台并写进 `status.json`。
+- 端口传 0 让系统分配，实际 URL 会打印到控制台（服务是纯读者，不写 `status.json`）。
 
 ## 前端要点
 
@@ -50,11 +52,11 @@ web/
 
 ## 开发与验证
 
-训练跑完后服务不会退出，也可以完全不训练、只回看历史 run：
+服务独立成 exe，训练与否都不影响它；它只回看 `runs/`：
 
 ```powershell
 cd build
-.\NumDistinguish.exe --serve-only --port 5110 --out ../runs --web ../web
+.\NumDistinguishWeb.exe --port 5110 --out ../runs --web ../web
 ```
 
 两个校验脚本（在 `../tools/`）：

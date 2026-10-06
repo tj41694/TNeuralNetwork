@@ -13,11 +13,15 @@ CMake + Ninja + clang/clang++（GNU 驱动，Release）。无测试、无 CI。
 ```powershell
 cmake -G Ninja -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang -B build  # 仅首次
 cmake --build build                                                            # 增量
-cd build; .\NumDistinguish.exe                                                 # 必须在 build/ 下运行
+cd build; .\NumDistinguish.exe                                                 # 训练，必须在 build/ 下运行
+cd build; .\NumDistinguishWeb.exe                                             # 只读遥测服务，同样在 build/ 下运行
 ```
 
+构建产出**两个独立 exe**：`NumDistinguish`（只训练并写遥测）与 `NumDistinguishWeb`（只读服务，回看 `runs/`）；两者不共享内存，只通过文件通信。
+
 - `main.cpp` 以相对路径打开 `resources/test.db`，所以工作目录必须是 `build/`。该库（约 287MB）不在 git 中，新克隆需自备，缺失直接 `return 1`。
-- 常用参数：`--exp NAME`、`--seed N`、`--steps N`、`--probes N`、`--hist-range R`（一个值=所有层，或 `1,1.5,1.5,2` 按层给，这也是默认）、`--port N`（默认 5108，占用时自动换）、`--serve-only`（只启动服务、不训练）、`--help`。
+- 训练常用参数：`--exp NAME`、`--seed N`、`--steps N`、`--probes N`、`--hist-range R`（一个值=所有层，或 `1,1.5,1.5,2` 按层给，这也是默认）、`--help`。
+- Web 服务参数：`--out DIR`（默认 `../runs`）、`--web DIR`（默认 `../web`）、`--port N`（默认 5108，占用时自动换）、`--help`。
 - 21000 步约 2 分钟（Release，本机），默认每 100 步打印一行；别因为打印稀疏就误判成卡死。
 
 ## 代码约定
@@ -32,7 +36,7 @@ cd build; .\NumDistinguish.exe                                                 #
 |---|---|---|
 | `TNeuralNetworkEngine/` | 模型本体与入口：`main.cpp`（CLI + 组装）、`NumDistinguish.*`（`DigitalDistinguish` + 激活函数）、`Sample.*`（`TnVector`/`TnLayer`/`Sample`/`CostFunc`）、`Shuffle.*`（mini-batch 采样池）、`TnRandom.*`（全局随机源）、`sqlite3/`（内嵌合并源，勿改） | 本文件 |
 | `record/` | **训练遥测的写入端**：只负责把 loss/lr/范数、权重直方图、probe 激活写成 `runs/<exp>_<时间戳>/` 下的文件。不碰网络，不引用训练对象以外的任何东西 | [`record/README.md`](record/README.md) |
-| `web/` | **整个 Web 功能**：只读 HTTP 服务（`DashboardServer.*` + `httplib/`，cpp-httplib v0.58.0）+ 纯静态前端（`index.html`/`app.js`/`protocol.js`/`charts.js`/`gl.js`/`style.css`）。只读 `runs/`，不引用训练内存 | [`web/README.md`](web/README.md) |
+| `web/` | **整个 Web 功能**：独立入口 `main.cpp` + 只读 HTTP 服务（`DashboardServer.*` + `httplib/`，cpp-httplib v0.58.0）+ 纯静态前端（`index.html`/`app.js`/`protocol.js`/`charts.js`/`gl.js`/`style.css`）。编译成独立 exe `NumDistinguishWeb`，只读 `runs/`，不引用训练内存 | [`web/README.md`](web/README.md) |
 
 **改动时的边界**：`record/` 只写文件、`web/` 只读文件，两者之间不共享内存也不需要锁；
 文件格式是它们唯一的契约，改任何一方都要同步 `web/protocol.js`、`docs/telemetry-plan.md` §4 与 `tools/proto-check.mjs`。
@@ -49,7 +53,7 @@ cd build; .\NumDistinguish.exe                                                 #
 - 数据表 `tr_data`(训练)/`te_data`(测试)，列 `(id, label, image_blob)`；图像 784 个 float，仅当 blob 恰为 3136 字节时才加载。
 
 ## 遥测与可视化
-训练遥测写入**仓库根的 `runs/<exp>_<时间戳>/`**（默认 `--out ../runs`，已被 git 忽略），由 `web/` 的只读 HTTP 服务提供给浏览器；`runs/` 下每个文件由 `record/` 写入、由 `web/` 只读消费，训练结束后可用 `--serve-only` 继续回看。格式、协议与踩过的坑见 [`docs/telemetry-plan.md`](docs/telemetry-plan.md)。
+训练遥测写入**仓库根的 `runs/<exp>_<时间戳>/`**（默认 `--out ../runs`，已被 git 忽略），由独立的 `NumDistinguishWeb` 只读 HTTP 服务提供给浏览器；`runs/` 下每个文件由 `record/` 写入、由 `web/` 只读消费，训练结束后可单独运行 `NumDistinguishWeb` 继续回看。格式、协议与踩过的坑见 [`docs/telemetry-plan.md`](docs/telemetry-plan.md)。
 
 前端是 `web/` 下的纯静态 ES module（无构建步骤），校验脚本在 `tools/`：
 

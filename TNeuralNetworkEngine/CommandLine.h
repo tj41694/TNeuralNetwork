@@ -11,10 +11,7 @@ struct Options
     bool seedGiven = false;
     uint32_t steps = 25000;
     int batchSize = 100;
-    int port = 5108;
     std::string outRoot = "../runs";
-    std::string webRoot = "../web";
-    bool serveOnly = false;
     uint32_t probes = 200;
     // 直方图固定分箱范围，一个值＝所有层，或按层各一个（逗号分隔）。
     // 默认按 He/Kaiming 初始化下的实测峰值给：0.85 / 1.37 / 1.34 / 1.86，各留约 10~20% 余量.

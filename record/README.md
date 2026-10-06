@@ -56,6 +56,7 @@
 改完跑一遍：
 
 ```powershell
-cd build; .\NumDistinguish.exe --exp fmt --steps 400 --port 5110
+cd build; .\NumDistinguish.exe --exp fmt --steps 400      # 只训练并写遥测
+cd build; .\NumDistinguishWeb.exe --port 5110             # 另开一个进程只读服务
 node ..\tools\proto-check.mjs http://127.0.0.1:5110 <runName> ..\runs
 ```

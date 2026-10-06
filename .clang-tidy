@@ -4,8 +4,9 @@
 # （llvmlibc、fuchsia、altera、zircon、objc、openmp…）一起打开，在本仓库全是误报
 # ——例如 llvmlibc-implementation-in-namespace 会要求所有实现都写进 __llvm_libc 命名空间。
 #
-# 下面逐条关掉的检查，数字是在 7 个编译单元（main / NumDistinguish / Sample / Shuffle /
-# TnRandom / Recorder / DashboardServer）上实测的命中数：
+# 下面逐条关掉的检查，数字是在几个编译单元（main / web/main / NumDistinguish / Sample /
+# Shuffle / TnRandom / Recorder / DashboardServer）上实测的命中数；拆出 Web 入口后个别
+# 计数会略有变化，量级不变：
 #   93  modernize-use-trailing-return-type              本项目一律用传统返回类型
 #   83  readability-identifier-length                   i / ec / ss 这类短名是刻意的
 #   81  cppcoreguidelines-pro-bounds-avoid-unchecked-container-access    热循环必须用 operator[]

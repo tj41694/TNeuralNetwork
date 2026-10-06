@@ -1,5 +1,4 @@
 #include "CommandLine.h"
-#include "DashboardServer.h"
 #include "NumDistinguish.h"
 #include "Recorder.h"
 #include "Sample.h"
@@ -7,12 +6,9 @@
 #include "sqlite3/sqlite3.h"
 #include <algorithm>
 #include <atomic>
-#include <chrono>
 #include <cstdio>
 #include <filesystem>
-#include <iostream>
 #include <string>
-#include <thread>
 #include <vector>
 
 #if defined(_WIN32)
@@ -82,42 +78,6 @@ bool GetData(vector<Sample *> &datas, int type)
     return true;
 }
 
-// 保持服务存活，方便继续看页面。
-// 交互式终端按回车退出；非交互式（后台运行/管道）读不到输入就退化为一直存活，
-// 靠 Ctrl+C 或外部终止结束。
-void HoldServerAlive()
-{
-    printf("\n按回车退出（非交互式运行则保持存活，Ctrl+C 亦可）...\n");
-    std::string line;
-    std::getline(std::cin, line);
-    if (!std::cin.eof())
-    {
-        return;
-    }
-    while (!g_stopRequested.load())
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    }
-}
-
-// --serve-only：只把已有的 runs/ 服务起来，不碰数据库、不建网络。
-int RunServeOnly(const Options &opt)
-{
-    DashboardServer server;
-    std::string url;
-    if (!server.Start(opt.outRoot, opt.webRoot, opt.port, url))
-    {
-        printf("HTTP 服务启动失败。\n");
-        return 3;
-    }
-    printf("仪表盘: %s\n", url.c_str());
-    HoldServerAlive();
-    server.Stop();
-    printf("done..\n");
-    return 0;
-}
-
-// 默认路径：只训练，不启动任何 HTTP 服务。
 int RunTraining(const Options &opt)
 {
     if (opt.seedGiven)
@@ -227,10 +187,5 @@ int main(int argc, char **argv)
     SetConsoleCtrlHandler(ConsoleHandler, TRUE);
 #endif
 
-    // 两条路径互斥：--serve-only 只服务，其余（默认）只训练。
-    if (opt.serveOnly)
-    {
-        return RunServeOnly(opt);
-    }
     return RunTraining(opt);
 }

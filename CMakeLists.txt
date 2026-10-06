@@ -6,6 +6,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+find_package(Threads REQUIRED)
+
+# 训练可执行文件：只训练并写遥测，不含任何 HTTP 服务。默认工作目录 build/。
 add_executable(NumDistinguish
     TNeuralNetworkEngine/main.cpp
     TNeuralNetworkEngine/CommandLine.cpp
@@ -14,23 +17,26 @@ add_executable(NumDistinguish
     TNeuralNetworkEngine/Shuffle.cpp
     TNeuralNetworkEngine/TnRandom.cpp
     record/Recorder.cpp
-    web/DashboardServer.cpp
     TNeuralNetworkEngine/sqlite3/sqlite3.c
 )
 
-# record/ 与 web/ 各自是一个自洽的功能目录（见各自的 README.md）：
-# record/ 只负责把遥测写成文件，web/ 只负责把这些文件只读地提供给浏览器。
+# record/ 只负责把遥测写成文件。
 target_include_directories(NumDistinguish PRIVATE
     TNeuralNetworkEngine
     record
-    web
 )
-
-find_package(Threads REQUIRED)
 target_link_libraries(NumDistinguish PRIVATE Threads::Threads)
+
+# Web 服务可执行文件：独立进程，只读 runs/ 提供给浏览器，与训练互不引用。
+add_executable(NumDistinguishWeb
+    web/main.cpp
+    web/DashboardServer.cpp
+)
+target_include_directories(NumDistinguishWeb PRIVATE web)
+target_link_libraries(NumDistinguishWeb PRIVATE Threads::Threads)
 
 if(WIN32)
     # cpp-httplib 的 Winsock 依赖。当前工具链是 GNU 风格的 clang++ 驱动，
     # 不认 #pragma comment(lib, ...)，所以必须在这里显式链接。
-    target_link_libraries(NumDistinguish PRIVATE ws2_32)
+    target_link_libraries(NumDistinguishWeb PRIVATE ws2_32)
 endif()

@@ -1,7 +1,7 @@
 # 训练遥测与实时可视化方案
 
 状态：**已实现并端到端验证**（2026-10-02）。
-适用范围：`NumDistinguish` 单可执行文件 + 纯静态前端页面。
+适用范围：`NumDistinguish`（训练/写入）+ `NumDistinguishWeb`（只读服务）两个独立可执行文件 + 纯静态前端页面。
 
 ## 0. 实现状态
 
@@ -9,7 +9,7 @@
 |---|---|
 | 随机源（可复现） | `TNeuralNetworkEngine/TnRandom.h/.cpp` |
 | 遥测写入 | `record/`（`Recorder.h/.cpp`，见 `record/README.md`） |
-| 只读 HTTP 服务 | `web/`（`DashboardServer.h/.cpp` + `web/httplib/`，cpp-httplib v0.58.0，MIT） |
+| 只读 HTTP 服务 | `web/`（`main.cpp` 入口 + `DashboardServer.h/.cpp` + `web/httplib/`，cpp-httplib v0.58.0，MIT），编译成独立 exe `NumDistinguishWeb` |
 | 前端 | `web/`（protocol.js / charts.js / gl.js / app.js / index.html / style.css，无构建步骤） |
 | 校验脚本 | `tools/proto-check.mjs`（增量协议）、`tools/charts-check.mjs`（图表数学） |
 
@@ -23,11 +23,11 @@
 - 训练 21000 步约 2 分钟（Release），最终测试集准确率 94.12%。
 - `tools/proto-check.mjs` 23 项、`tools/charts-check.mjs` 13 项全部通过。
 
-运行方式（三条命令的工作目录都是 `build/`，见 `AGENTS.md`）：
+运行方式（所有命令的工作目录都是 `build/`，见 `AGENTS.md`）。训练与 Web 服务是两个独立进程：
 
 ```powershell
-.\NumDistinguish.exe --exp demo --steps 21000                 # 训练 + 仪表盘
-.\NumDistinguish.exe --serve-only --port 5108                 # 不训练，只回看 runs/
+.\NumDistinguish.exe --exp demo --steps 21000                 # 只训练并写 runs/
+.\NumDistinguishWeb.exe --port 5108                           # 只读服务，回看 runs/
 node ..\tools\proto-check.mjs http://127.0.0.1:5108 <runName> ..\runs
 ```
 
@@ -54,8 +54,8 @@ node ..\tools\proto-check.mjs http://127.0.0.1:5108 <runName> ..\runs
 由此推出三条硬约束，实现时必须守住：
 
 1. `DashboardServer` 是**无状态纯读者**：只接收一个 `runs/` 根目录路径，不持有任何训练对象指针。
-   → 训练线程与服务器线程之间**零锁**。
-2. **只有训练线程写文件**，服务器永不写。
+   → 训练进程与服务器进程之间**零锁**（两个独立 exe）。
+2. **只有训练进程写文件**，服务器永不写。
 3. 训练结束后服务器可继续存活，页面仍能查看结果；历史 run 可以用任意静态服务器回看。
 
 ## 3. 目录布局
@@ -69,7 +69,8 @@ D:\projects\TNeuralNetwork\            # 仓库根
     sqlite3/                           # 内嵌 SQLite 合并源，勿改
   record/                              # 遥测写入端（见 record/README.md）
     Recorder.h  Recorder.cpp
-  web/                                 # 整个 Web 功能（见 web/README.md）
+  web/                                 # 整个 Web 功能，编译成独立 exe NumDistinguishWeb（见 web/README.md）
+    main.cpp                           # Web 服务入口（解析 --out/--web/--port 并起服务）
     index.html  style.css  app.js  protocol.js  charts.js  gl.js  package.json
     DashboardServer.h  DashboardServer.cpp
     httplib/                           # cpp-httplib v0.58.0 + LICENSE
@@ -241,11 +242,13 @@ D:\projects\TNeuralNetwork\            # 仓库根
 
 ### 5.5 `DashboardServer`（新类）
 
-见 §6。用 cpp-httplib（单头文件、MIT，与工程"内嵌 sqlite3 amalgamation"的风格一致）跑在 `std::thread` 里，训练结束时 `stop()` + `join()`。
+见 §6。用 cpp-httplib（单头文件、MIT，与工程"内嵌 sqlite3 amalgamation"的风格一致）跑在 `std::thread` 里，由独立入口 `web/main.cpp` 持有；`NumDistinguishWeb` 退出时 `stop()` + `join()`。
 
 ### 5.6 `CMakeLists.txt`
 
-新增 `record/Recorder.cpp`、`web/DashboardServer.cpp`，把 `TNeuralNetworkEngine/`、`record/`、`web/` 加进 include 路径，并 `target_link_libraries(NumDistinguish PRIVATE ws2_32)`。
+两个独立目标：`NumDistinguish`（`TNeuralNetworkEngine/` + `record/Recorder.cpp` + `sqlite3`）与
+`NumDistinguishWeb`（`web/main.cpp` + `web/DashboardServer.cpp`）。训练目标包含 `TNeuralNetworkEngine/`、`record/`，
+Web 目标只包含 `web/`；只有 Web 目标 `target_link_libraries(NumDistinguishWeb PRIVATE ws2_32)`。
 
 > 当前工具链是 **GNU 风格的 `clang++` 驱动**（不是 `clang-cl`），因此**不要依赖 `#pragma comment(lib, ...)`**，必须在 CMake 里显式链接。源码里 `<winsock2.h>` 必须早于 `<windows.h>`，并定义 `WIN32_LEAN_AND_MEAN` / `NOMINMAX`，别忘了 `WSAStartup`。
 
@@ -290,9 +293,9 @@ D:\projects\TNeuralNetwork\            # 仓库根
 
 - 只绑 `127.0.0.1`：既避免 Windows 防火墙弹窗（绑 `0.0.0.0` 才弹），也避免把 `runs/` 暴露到局域网。
 - 路径穿越：把请求路径 `weakly_canonical` 后校验前缀仍在 `runs/` 之内；拒绝 `..`、绝对路径、Windows ADS（`文件:流`）。
-- 端口占用则顺延，最终 URL 打印到控制台并写进 `status.json`。
+- 端口占用则顺延，最终 URL 打印到 `NumDistinguishWeb` 的控制台（服务是纯读者，不写 `status.json`）。
 - keep-alive：浏览器会复用连接。用 cpp-httplib 无需操心；若手写 Winsock，要么正确处理 keep-alive 循环，要么每个响应都带 `Connection: close`。
-- 训练结束后**让服务继续活着**（打印"打开 http://…/ 查看结果，按回车退出"），否则页面会突然失联。
+- 服务是独立进程，训练结束不影响它**继续存活**（打印"打开 http://…/ 查看结果，按回车退出"）；只要进程不退，页面就不会失联。
 
 ## 7. 前端增量拉取协议
 

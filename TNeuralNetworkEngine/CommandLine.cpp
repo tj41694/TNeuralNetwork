@@ -57,12 +57,10 @@ void PrintUsage()
     printf("  --steps N        训练步数，1 步 = 1 个 batch （默认 25000）\n");
     printf("  --batch N        每批样本数 （默认 100）\n");
     printf("  --out DIR        遥测输出根目录 （默认 ../runs，即仓库根的 runs/）\n");
-    printf("  --web DIR        前端静态文件目录 （默认 ../web）\n");
-    printf("  --port N         HTTP 端口；默认 5108，被占用时自动改用空闲端口；0 表示直接自动分配\n");
     printf("  --probes N       激活快照使用的固定样本数 （默认 16，0 表示关闭）\n");
     printf("  --hist-range R   直方图固定分箱范围 ±R；一个值用于所有层，"
            "或用逗号按层各给一个（默认按层 1,1.5,1.5,2）\n");
-    printf("  --serve-only     只启动 HTTP 服务，不训练（回看历史 run）\n");
+    printf("提示: 浏览器查看遥测请单独运行 NumDistinguishWeb（见 web/README.md）\n");
 }
 
 bool ParseUint(const char *text, uint32_t &out)
@@ -99,10 +97,6 @@ bool ParseArgs(int argc, char **argv, Options &opt)
             PrintUsage();
             exit(0);
         }
-        else if (arg == "--serve-only")
-        {
-            opt.serveOnly = true;
-        }
         else if (arg == "--exp")
         {
             const char *v = requireValue("--exp");
@@ -120,15 +114,6 @@ bool ParseArgs(int argc, char **argv, Options &opt)
                 return false;
             }
             opt.outRoot = v;
-        }
-        else if (arg == "--web")
-        {
-            const char *v = requireValue("--web");
-            if (v == nullptr)
-            {
-                return false;
-            }
-            opt.webRoot = v;
         }
         else if (arg == "--seed")
         {
@@ -158,16 +143,6 @@ bool ParseArgs(int argc, char **argv, Options &opt)
                 return false;
             }
             opt.batchSize = static_cast<int>(value);
-        }
-        else if (arg == "--port")
-        {
-            const char *v = requireValue("--port");
-            uint32_t value = 0;
-            if (v == nullptr || !ParseUint(v, value))
-            {
-                return false;
-            }
-            opt.port = static_cast<int>(value);
         }
         else if (arg == "--probes")
         {
